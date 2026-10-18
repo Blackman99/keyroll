@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"time"
@@ -29,6 +30,17 @@ import (
 )
 
 var version = "0.1.0-dev"
+
+// `go install …@v0.1.0` does not run GoReleaser's -X flag; take the module
+// version Go recorded in the binary instead of claiming a dev build.
+func init() {
+	if !strings.HasSuffix(version, "-dev") {
+		return
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && strings.HasPrefix(bi.Main.Version, "v") {
+		version = strings.TrimPrefix(bi.Main.Version, "v")
+	}
+}
 
 // Exit codes.
 const (
