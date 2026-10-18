@@ -10,8 +10,10 @@ go build -o "$KR" ./cmd/keyroll
 key() { DEMOHOME_KEY="$1" go run ./internal/testhome/demohome; }
 OLD=$(key openai); NEW=$(key new-openai)
 H="$PWD/.it-home"; rm -rf "$H"; mkdir -p "$H/.codex" "$H/code/app"
-export HOME="$H" NO_COLOR=1
-unset OPENAI_API_KEY CODEX_HOME LLM_USER_PATH || true
+# GitHub runners export XDG_CONFIG_HOME=/home/runner/.config; pin every base
+# dir to the throwaway home so the tools and keyroll agree on where files live.
+export HOME="$H" NO_COLOR=1 XDG_CONFIG_HOME="$H/.config" XDG_DATA_HOME="$H/.local/share" XDG_STATE_HOME="$H/.local/state"
+unset OPENAI_API_KEY CODEX_HOME LLM_USER_PATH OPENCODE_DB || true
 
 echo "== real tools write the key"
 printf '%s' "$OLD" | codex login --with-api-key >/dev/null 2>&1
@@ -50,7 +52,8 @@ test "$(stat -c %a "$H/.codex/auth.json")" = 600
 
 echo "== keyroll check against the real provider APIs (fake keys must come back rejected)"
 H2="$PWD/.it-home2"; rm -rf "$H2"; go run ./internal/testhome/demohome "$H2"
-set +e; HOME="$H2" "$KR" check; HOME="$H2" "$KR" check --json > check.json; code=$?; set -e
+in2() { HOME="$H2" XDG_CONFIG_HOME="$H2/.config" XDG_DATA_HOME="$H2/.local/share" XDG_STATE_HOME="$H2/.local/state" "$@"; }
+set +e; in2 "$KR" check; in2 "$KR" check --json > check.json; code=$?; set -e
 test "$code" = 1 || { echo "check should exit 1 (rejected keys still configured), got $code"; exit 1; }
 python3 - <<'PY'
 import json
