@@ -1,0 +1,7 @@
+{
+ "provider": "fireworks",
+ "recorded": "2026-10-18T10:40+08:00",
+ "request": "GET with an obviously fake key",
+ "status": 401,
+ "body": "{\"error\":{\"message\":\"The API key you provided is invalid.\",\"param\":null,\"code\":\"UNAUTHORIZED\",\"type\":\"error\"},\"request_id\":\"829d0023-62bd-4ff1-b912-1113f525d802\"}"
+}

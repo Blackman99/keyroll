@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>keyroll docs · install, usage, reference, FAQ</title>
+<meta name="description" content="keyroll documentation: install, map / check / rotate, flags and environment, JSON output, every location it reads, issuer endpoints, exit codes, MCP, FAQ.">
+<link rel="canonical" href="https://blackman99.github.io/keyroll/docs/">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../logo-512.png" type="image/png" sizes="512x512">
+<meta name="theme-color" content="#8fa597">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="keyroll">
+<meta property="og:url" content="https://blackman99.github.io/keyroll/docs/">
+<meta property="og:title" content="keyroll docs">
+<meta property="og:description" content="Install, map / check / rotate, flags, JSON output, every location keyroll reads, issuer endpoints, exit codes, MCP and FAQ.">
+<meta property="og:image" content="https://blackman99.github.io/keyroll/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A cord switchboard: one red Anthropic key patched into nine jacks labelled with the files that hold a copy of it.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="keyroll docs">
+<meta name="twitter:description" content="Install, map / check / rotate, flags, JSON output, locations, issuer endpoints, exit codes, MCP, FAQ.">
+<meta name="twitter:image" content="https://blackman99.github.io/keyroll/og.png">
+<link rel="preload" href="../fonts/libre-franklin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="../style.css">
+<style>
+  .docs { max-width: 1180px; margin: 0 auto; padding: 22px 22px 0; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 40px; }
+  .docs nav { position: sticky; top: 16px; align-self: start; background: var(--bakelite); color: var(--strip); border-radius: 6px; padding: 14px 0 10px; }
+  .docs nav a { display: flex; gap: 10px; align-items: center; color: var(--strip); text-decoration: none; padding: 6px 16px; font: 700 13px/1.2 var(--sans); letter-spacing: .1em; text-transform: uppercase; }
+  .docs nav a::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2a2822; box-shadow: 0 0 0 1.5px #5c625f; flex: none; }
+  .docs nav a:hover::before, .docs nav a.on::before { background: var(--ring); }
+  .docs nav .home { margin: 0 12px 10px; padding: 8px 6px 12px; border-bottom: 1px solid #3a3a33; font: italic 900 26px/1 var(--sans); letter-spacing: -.02em; text-transform: none; }
+  .docs nav .home img { width: 30px; height: 30px; }
+  .docs nav .home::before { display: none; }
+  .docs article { min-width: 0; padding-bottom: 30px; }
+  .docs h2.big { font: 800 clamp(30px, 4vw, 44px)/1.05 var(--sans); letter-spacing: -.02em; margin: 6px 0 12px; }
+  .docs section { margin: 0 0 48px; scroll-margin-top: 16px; }
+  .docs h3 { font: 800 20px/1.2 var(--sans); margin: 26px 0 8px; }
+  .docs p, .docs li { max-width: 72ch; }
+  .docs table.ring code { word-break: break-word; }
+  .cl { font: 700 10px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; background: var(--strip); padding: 2px 5px; border-radius: 2px; }
+  dl.faq dt { font-weight: 800; margin: 18px 0 4px; }
+  dl.faq dd { margin: 0; max-width: 72ch; }
+  @media (max-width: 860px) { .docs { grid-template-columns: minmax(0, 1fr); gap: 18px; } .docs nav { position: static; display: flex; flex-wrap: wrap; padding: 8px; } .docs nav .home { width: 100%; margin: 0 0 6px; } .docs nav a { padding: 6px 10px; } }
+</style>
+</head>
+<body>
+<div class="docs">
+<nav aria-label="Docs sections">
+  <a class="home" href="../"><img src="../logo.svg" alt="" width="30" height="30">keyroll</a>
+  <a href="#install">Install</a>
+  <a href="#usage">Usage</a>
+  <a href="#config">Configuration</a>
+  <a href="#reference">Reference</a>
+  <a href="#where">Where it looks</a>
+  <a href="#issuers">Issuers</a>
+  <a href="#mcp">MCP</a>
+  <a href="#faq">FAQ</a>
+</nav>
+<article>
+<section id="install">
+  <div class="strip"><span class="no">01</span><h2>Install</h2></div>
+  <h2 class="big">One binary, no dependencies.</h2>
+  <div class="term wrapcmd"><button class="copy" data-copy="i1" type="button">copy</button><span id="i1">curl -fsSL https://blackman99.github.io/keyroll/install.sh | sh</span></div>
+  <p>The script picks the archive for your OS and CPU from the latest release, checks it against the release’s <code>checksums.txt</code>, and puts <code>keyroll</code> in <code>~/.local/bin</code> (set <code>KEYROLL_BIN</code> to change that). It is 50 lines; <a href="../install.sh">read it first</a>.</p>
+  <div class="term wrapcmd"><button class="copy" data-copy="i2" type="button">copy</button><span id="i2">go install github.com/Blackman99/keyroll/cmd/keyroll@latest</span></div>
+  <p>Or download <code>keyroll_&lt;os&gt;_&lt;arch&gt;.tar.gz</code> (zip on Windows) from <a href="https://github.com/Blackman99/keyroll/releases/latest">Releases</a>: macOS, Linux and Windows, amd64 and arm64.</p>
+</section>
+
+<section id="usage">
+  <div class="strip"><span class="no">02</span><h2>Usage</h2></div>
+  <h2 class="big">Map, check, rotate.</h2>
+  <h3>keyroll <span class="mono">(map)</span></h3>
+  <p>Offline. Lists every key it finds, grouped by key, with each copy’s file, line, field name and class. Nothing is sent anywhere and no key is ever printed: you see <code>sk-ant-…M1AA</code> and the fingerprint <code>#38bb1575</code> (first 8 hex characters of the key’s SHA-256).</p>
+  <div class="term">$ keyroll
+keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
+
+  ● Anthropic         sk-ant-…M1AA     #38bb1575  9 copies  3 live · 1 database · 5 leftovers
+      live      Claude Code      ~/.claude.json:4                                    primaryApiKey
+      live      shell            ~/.zshrc:6                                          ANTHROPIC_API_KEY
+      live      project .env     ~/code/shop/.env:2                                  ANTHROPIC_API_KEY
+      database  OpenCode         ~/.local/share/opencode/opencode.db
+                                 → opencode auth login anthropic  (then: opencode auth list)
+      leftover  OpenCode         ~/.local/share/opencode/auth.json:4                 anthropic.key
+                                 legacy file: OpenCode v2 imported it into opencode.db and no longer reads it
+      leftover  shell history    ~/.zsh_history:2
+      …</div>
+  <p>Classes: <b>live</b> (a tool reads it), <b>leftover</b> (nothing reads it, but it still works as a key: backups, legacy files, history, templates), <b>database</b> (SQLite app state keyroll never edits; it prints the command that replaces the key instead).</p>
+
+  <h3>keyroll check [fingerprint…]</h3>
+  <p>Sends each key to its own issuer, once, to a free read-only endpoint (<a href="#issuers">table</a>), at most 4 at a time with a 10 s limit each (<code>--timeout</code>). Prints <b>ALIVE</b> (the issuer accepts it), <b>REJECTED</b> (the issuer refuses it: revoked, deleted or mistyped), <b>unknown</b> or <b>skipped</b> per key, the spend limit where the issuer exposes it (OpenRouter), and which tools will fail because they still use a rejected key. Their 401s come from the issuer, not from a bug in your code. Exit code 1 when a rejected key is still configured somewhere live.</p>
+
+  <h3>keyroll rotate &lt;fingerprint&gt;</h3>
+  <p>Give the fingerprint (or its first 4+ characters, or the last 4 of the key). keyroll asks for the new key with echo off, or reads it from stdin if piped:</p>
+  <div class="term">pbpaste | keyroll rotate 38bb1575          # macOS
+wl-paste | keyroll rotate 38bb1575         # Wayland
+keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
+  <ol>
+    <li>The new key is cleaned of quotes and whitespace and refused if it is the same key, a login token, or another issuer’s key.</li>
+    <li>Unless <code>--offline</code>, keyroll asks the issuer whether the new key works, and refuses one it rejects.</li>
+    <li>The last line of every rotation asks the issuer about the <b>old</b> key: <b>REFUSES</b> means it is revoked; <b>ACCEPTS</b> means it is not, and copies keyroll cannot see (a hosted console, CI secrets, another machine) can still spend on it.</li>
+    <li>It prints the plan: <b>write</b> for live copies, <b>scrub</b> for leftovers (the old key becomes <code>[revoked-by-keyroll:38bb1575]</code> and the new key is not added), <b>by hand</b> for databases. It asks once (or <code>--yes</code>).</li>
+    <li>Each file: originals copied to <code>~/.keyroll/backups/&lt;time&gt;-&lt;fp&gt;/</code>, the old key’s bytes replaced, written to a temp file in the same folder with the original mode, fsynced, renamed over. Symlinks are written through to their target. A file that changed during the rotation is left untouched.</li>
+    <li>keyroll scans again and prints how many places still hold the old key, then the manual steps, the issuer’s revoke page and its spend-limit page.</li>
+  </ol>
+
+  <h3>keyroll paths</h3>
+  <p>Every fixed location keyroll reads and whether it exists on this machine (<a href="#where">full list</a>).</p>
+  <h3>keyroll mcp</h3>
+  <p>Read-only MCP server over stdio (<a href="#mcp">details</a>).</p>
+</section>
+
+<section id="config">
+  <div class="strip"><span class="no">03</span><h2>Configuration</h2></div>
+  <h2 class="big">Flags and environment.</h2>
+  <p>There is no config file. Everything is a flag.</p>
+  <div class="tablewrap"><table class="ring">
+    <thead><tr><th>Flag</th><th>Commands</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>--json</code></td><td>map, check, rotate, paths</td><td>Machine-readable output. Never contains key values.</td></tr>
+      <tr><td><code>--root DIR</code></td><td>map, check, rotate</td><td>Walk DIR for <code>.env</code> files and project configs. Repeatable. Default: your home folder.</td></tr>
+      <tr><td><code>--depth N</code></td><td>map, check, rotate</td><td>How deep the walk goes (default 6). <code>node_modules</code>, <code>.git</code>, caches, VMs and agent transcript folders are skipped.</td></tr>
+      <tr><td><code>--no-walk</code></td><td>map, check, rotate</td><td>Only the fixed locations, no walk.</td></tr>
+      <tr><td><code>--provider ID</code></td><td>map, check, rotate</td><td>Only keys of one issuer: <code>anthropic</code>, <code>openai</code>, <code>openrouter</code>, <code>google</code>, <code>xai</code>, <code>groq</code>, <code>deepseek</code>, …</td></tr>
+      <tr><td><code>--file PATH</code></td><td>map, check, rotate</td><td>Also scan this file. Repeatable.</td></tr>
+      <tr><td><code>--timeout 10s</code></td><td>check, rotate</td><td>Per-request limit for issuer checks.</td></tr>
+      <tr><td><code>--dry-run</code></td><td>rotate</td><td>Print the plan, change nothing.</td></tr>
+      <tr><td><code>--yes</code></td><td>rotate</td><td>Skip the confirmation (required when there is no terminal).</td></tr>
+      <tr><td><code>--offline</code></td><td>rotate</td><td>Don’t check the new key with its issuer first.</td></tr>
+      <tr><td><code>--no-backup</code></td><td>rotate</td><td>Don’t keep originals in <code>~/.keyroll/backups</code>.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tablewrap"><table class="ring">
+    <thead><tr><th>Environment</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>CODEX_HOME</code>, <code>CLAUDE_CONFIG_DIR</code>, <code>LLM_USER_PATH</code>, <code>OPENCODE_DB</code>, <code>HISTFILE</code></td><td>Honoured the same way the tools themselves honour them.</td></tr>
+      <tr><td><code>XDG_CONFIG_HOME</code>, <code>XDG_DATA_HOME</code>, <code>APPDATA</code></td><td>Where config and data folders are on Linux and Windows.</td></tr>
+      <tr><td><code>NO_COLOR</code>, <code>FORCE_COLOR</code>, <code>COLUMNS</code></td><td>Output colour and width. Colour is on only for a terminal.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="reference">
+  <div class="strip"><span class="no">04</span><h2>Reference</h2></div>
+  <h2 class="big">Exit codes, JSON, detection.</h2>
+  <div class="tablewrap"><table class="ring">
+    <thead><tr><th>Exit</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>0</code></td><td>OK.</td></tr>
+      <tr><td><code>1</code></td><td>Action needed: <code>check</code> found a rejected key that something still uses, or a <code>rotate</code> step failed.</td></tr>
+      <tr><td><code>2</code></td><td>Usage error (unknown flag or command, no such key, refused new key).</td></tr>
+      <tr><td><code>3</code></td><td>Runtime error.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>JSON (<code>keyroll --json</code>)</h3>
+  <div class="term">{
+  "keys": [{
+    "fingerprint": "38bb1575", "hint": "sk-ant-…M1AA",
+    "provider": "anthropic", "provider_name": "Anthropic", "kind": "api",
+    "copies": [
+      { "path": "/home/you/.claude.json", "display": "~/.claude.json", "tool": "Claude Code",
+        "class": "live", "field": "primaryApiKey", "lines": [4], "count": 1 },
+      { "path": "…/opencode/opencode.db", "tool": "OpenCode", "class": "database",
+        "note": "OpenCode v2 credential store", "manual": "opencode auth login &lt;provider&gt;  (then: opencode auth list)" }
+    ]
+  }],
+  "files_scanned": 17, "dirs_walked": 4, "roots": ["/home/you"], "elapsed_ms": 9
+}</div>
+  <p><code>check --json</code> adds a result per key: <code>state</code>, <code>http</code>, <code>detail</code>, <code>endpoint</code>, <code>ms</code>, and <code>limit_usd</code> / <code>usage_usd</code> / <code>no_cap</code> where the issuer reports them. Every JSON output is tested to contain no 8-character run of any key.</p>
+  <h3>How keys are recognised</h3>
+  <ul>
+    <li>By issuer prefix where one exists: <code>sk-ant-api03-</code>, <code>sk-ant-admin01-</code>, <code>sk-or-v1-</code>, <code>sk-proj-</code>, <code>sk-svcacct-</code>, <code>AIza</code>, <code>gsk_</code>, <code>xai-</code>, <code>hf_</code>, <code>csk-</code>, <code>fw_</code>, <code>pplx-</code>.</li>
+    <li>Keys without a prefix (DeepSeek, Moonshot, Mistral, Z.ai, Together) only when the variable name or the JSON object around them names the issuer, e.g. <code>DEEPSEEK_API_KEY=</code> or a <code>"deepseek"</code> provider block.</li>
+    <li>Any other <code>sk-…</code> key is listed as <em>unknown issuer</em> and never sent anywhere.</li>
+    <li>Claude Code login tokens (<code>sk-ant-oat…</code>, <code>sk-ant-ort…</code>) are mapped but not checked or rotated: run <code>claude /login</code>.</li>
+  </ul>
+</section>
+
+<section id="where">
+  <div class="strip"><span class="no">05</span><h2>Where it looks</h2></div>
+  <h2 class="big">65 fixed places, then your projects.</h2>
+  <p>Paths shown for Linux; macOS uses <code>~/Library/Application Support</code> and Windows <code>%APPDATA%</code> where the tool does. Run <code>keyroll paths</code> to see which exist on your machine.</p>
+  <div class="tablewrap"><table class="ring">
+    <thead><tr><th>Tool</th><th>Files</th></tr></thead>
+    <tbody>
+<tr><td>Aider</td><td><code>~/.aider.conf.yml</code><br><code>~/.aider.conf.yaml</code></td></tr>
+<tr><td>Claude Code</td><td><code>~/.claude.json</code><br><code>~/.claude/.claude.json</code><br><code>~/.claude/settings.json</code><br><code>~/.claude/settings.local.json</code><br><code>~/.claude/.credentials.json</code><br><code>~/.claude/backups/.claude.json.backup.1760650211</code> <span class="cl">leftover</span><br><code>~/.claude/backups/.claude.json.backup.1760736622</code> <span class="cl">leftover</span></td></tr>
+<tr><td>Claude Desktop</td><td><code>~/.config/Claude/claude_desktop_config.json</code></td></tr>
+<tr><td>Cline</td><td><code>~/.cline/data/secrets.json</code><br><code>~/.cline/data/globalState.json</code></td></tr>
+<tr><td>Code settings</td><td><code>~/.config/Code/User/settings.json</code><br><code>~/.config/Code/User/mcp.json</code></td></tr>
+<tr><td>Codex</td><td><code>~/.codex/auth.json</code><br><code>~/.codex/config.toml</code><br><code>~/.codex/.env</code></td></tr>
+<tr><td>Continue</td><td><code>~/.continue/config.yaml</code><br><code>~/.continue/config.json</code><br><code>~/.continue/.env</code></td></tr>
+<tr><td>Crush</td><td><code>~/.config/crush/crush.json</code><br><code>~/.local/share/crush/crush.json</code></td></tr>
+<tr><td>Cursor</td><td><code>~/.cursor/mcp.json</code></td></tr>
+<tr><td>Cursor settings</td><td><code>~/.config/Cursor/User/settings.json</code><br><code>~/.config/Cursor/User/mcp.json</code></td></tr>
+<tr><td>Gemini CLI</td><td><code>~/.gemini/.env</code><br><code>~/.gemini/settings.json</code></td></tr>
+<tr><td>Goose</td><td><code>~/.config/goose/config.yaml</code><br><code>~/.config/goose/secrets.yaml</code></td></tr>
+<tr><td>OpenCode</td><td><code>~/.local/share/opencode/auth.json</code> <span class="cl">leftover</span><br><code>~/.config/opencode/opencode.json</code><br><code>~/.config/opencode/opencode.jsonc</code><br><code>~/.config/opencode/config.json</code><br><code>~/.local/share/opencode/opencode.db</code> <span class="cl">database</span></td></tr>
+<tr><td>Pi</td><td><code>~/.pi/agent/auth.json</code><br><code>~/.pi/agent/settings.json</code></td></tr>
+<tr><td>PowerShell</td><td><code>~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1</code><br><code>~/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1</code><br><code>~/.config/powershell/Microsoft.PowerShell_profile.ps1</code></td></tr>
+<tr><td>VSCodium settings</td><td><code>~/.config/VSCodium/User/settings.json</code><br><code>~/.config/VSCodium/User/mcp.json</code></td></tr>
+<tr><td>Windsurf</td><td><code>~/.codeium/windsurf/mcp_config.json</code></td></tr>
+<tr><td>Windsurf settings</td><td><code>~/.config/Windsurf/User/settings.json</code><br><code>~/.config/Windsurf/User/mcp.json</code></td></tr>
+<tr><td>Zed</td><td><code>~/.config/zed/settings.json</code></td></tr>
+<tr><td>aichat</td><td><code>~/.config/aichat/config.yaml</code></td></tr>
+<tr><td>llm</td><td><code>~/.config/io.datasette.llm/keys.json</code></td></tr>
+<tr><td>shell</td><td><code>~/.zshrc</code><br><code>~/.zshenv</code><br><code>~/.zprofile</code><br><code>~/.bashrc</code><br><code>~/.bash_profile</code><br><code>~/.profile</code><br><code>~/.envrc</code><br><code>~/.env</code><br><code>~/.secrets</code><br><code>~/.netrc</code><br><code>~/.config/fish/config.fish</code><br><code>~/.config/fish/fish_variables</code></td></tr>
+<tr><td>shell history</td><td><code>~/.zsh_history</code> <span class="cl">leftover</span><br><code>~/.bash_history</code> <span class="cl">leftover</span><br><code>~/.python_history</code> <span class="cl">leftover</span><br><code>~/.node_repl_history</code> <span class="cl">leftover</span><br><code>~/.local/share/fish/fish_history</code> <span class="cl">leftover</span><br><code>~/.local/share/powershell/PSReadLine/ConsoleHost_history.txt</code> <span class="cl">leftover</span></td></tr>
+      <tr><td>Claude Code backups</td><td><code>~/.claude/backups/.claude.json.backup.*</code> <span class="cl">leftover</span></td></tr>
+      <tr><td>Editors (app state)</td><td><code>Cursor / Windsurf / Code …/globalStorage/state.vscdb</code> <span class="cl">database</span></td></tr>
+      <tr><td>keyroll backups</td><td><code>~/.keyroll/backups/*</code> <span class="cl">leftover</span></td></tr>
+      <tr><td>Any of the above</td><td><code>.bak</code>, <code>~</code>, <code>.orig</code>, <code>.old</code>, <code>.save</code>, <code>.backup*</code> siblings <span class="cl">leftover</span></td></tr>
+    </tbody>
+  </table></div>
+  <h3>The walk</h3>
+  <p>From your home (or <code>--root</code>), keyroll reads <code>.env</code>, <code>*.env</code>, <code>.env.local</code>/<code>.env.production</code> and friends, <code>.dev.vars</code>, <code>.envrc</code>, <code>opencode.json</code>, <code>.aider.conf.yml</code>, <code>.mcp.json</code>, <code>.claude/settings.local.json</code>, <code>.cursor/mcp.json</code>, <code>.vscode/mcp.json</code> and <code>.codex/config.toml</code> as <b>live</b>; <code>.env.example</code>/<code>.sample</code>/<code>.template</code>, <code>.env.*</code> backups and editor Local History copies as <b>leftover</b>. It skips dependency folders, caches, VM images and agent transcript folders. A copy inside a git-tracked file is flagged, because rotating it locally does not remove it from history.</p>
+</section>
+
+<section id="issuers">
+  <div class="strip"><span class="no">06</span><h2>Issuers</h2></div>
+  <h2 class="big">One free GET per key, to its own issuer.</h2>
+  <p>The key travels only in a header, never in a URL. Redirects are not followed. Answers recorded with fake keys are replayed in the tests (<code>internal/check/testdata</code>).</p>
+  <div class="tablewrap"><table class="ring">
+    <thead><tr><th>Issuer</th><th>Endpoint</th><th>Header</th></tr></thead>
+    <tbody>
+      <tr><td>Anthropic</td><td><code>api.anthropic.com/v1/models?limit=1</code></td><td><code>x-api-key</code></td></tr>
+      <tr><td>OpenAI</td><td><code>api.openai.com/v1/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>OpenRouter</td><td><code>openrouter.ai/api/v1/key</code> (limit, usage)</td><td><code>Authorization</code></td></tr>
+      <tr><td>Google AI Studio</td><td><code>generativelanguage.googleapis.com/v1beta/models?pageSize=1</code></td><td><code>x-goog-api-key</code></td></tr>
+      <tr><td>xAI</td><td><code>api.x.ai/v1/api-key</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Groq</td><td><code>api.groq.com/openai/v1/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>DeepSeek</td><td><code>api.deepseek.com/user/balance</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Mistral</td><td><code>api.mistral.ai/v1/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Together AI</td><td><code>api.together.xyz/v1/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Cerebras</td><td><code>api.cerebras.ai/v1/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Fireworks</td><td><code>api.fireworks.ai/inference/v1/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Moonshot (Kimi)</td><td><code>api.moonshot.ai/v1/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Z.ai (GLM)</td><td><code>api.z.ai/api/paas/v4/models</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Hugging Face</td><td><code>huggingface.co/api/whoami-v2</code></td><td><code>Authorization</code></td></tr>
+      <tr><td>Perplexity</td><td>no free endpoint: mapped and rotated, not checked</td><td></td></tr>
+    </tbody>
+  </table></div>
+  <p><b>ALIVE</b>: 2xx, 402 or a 429 that says the account is out of credit, and Google’s 403 “API not enabled”. <b>REJECTED</b>: 401, and the issuer’s documented invalid-key answers (Google 400 <code>API_KEY_INVALID</code>, xAI 400). <b>unknown</b>: a bare 429 (some issuers rate-limit before they look at the key), any other 403, 5xx, timeouts, network errors.</p>
+</section>
+
+<section id="mcp">
+  <div class="strip"><span class="no">07</span><h2>MCP</h2></div>
+  <h2 class="big">Read-only, fingerprints only.</h2>
+  <div class="term">claude mcp add keyroll -- keyroll mcp
+codex mcp add keyroll -- keyroll mcp</div>
+  <p>Or in any client’s JSON config: <code>{"command": "keyroll", "args": ["mcp"]}</code>. Tools:</p>
+  <ul>
+    <li><code>key_map</code>: every key (issuer, hint, fingerprint) with copy counts per class. Optional <code>provider</code>.</li>
+    <li><code>key_copies</code>: every file holding one key (by fingerprint), with class, field, line and the manual command for databases.</li>
+  </ul>
+  <p>Both are annotated <code>readOnlyHint</code>, run offline and return no key material. There is deliberately no check or rotate tool: an agent should not be the one sending or replacing your keys.</p>
+</section>
+
+<section id="faq">
+  <div class="strip"><span class="no">08</span><h2>FAQ</h2></div>
+  <dl class="faq">
+    <dt>Why scrub leftovers instead of updating them?</dt>
+    <dd>A backup or an old <code>auth.json</code> holding the new key is one more copy to leak. Rotation should shrink the number of places a key lives, not keep it.</dd>
+    <dt>Why won’t it edit OpenCode’s database?</dt>
+    <dd>OpenCode v2 keeps credentials in SQLite and may be running. Writing to a live SQLite file from outside is how you corrupt it. <code>opencode auth login &lt;provider&gt;</code> is one command and does it properly.</dd>
+    <dt>Does it read my keychain?</dt>
+    <dd>No. Tools that store keys in the OS keychain (Claude Code on macOS, for example) don’t leave plaintext copies, and keyroll doesn’t ask for keychain access. Re-login those tools after revoking.</dd>
+    <dt>Does it look inside agent chat transcripts?</dt>
+    <dd>No. A key pasted into a Claude Code or Codex chat lives in session logs; use <a href="https://github.com/Blackman99/spillscan">spillscan</a> for those.</dd>
+    <dt>Is a REJECTED key definitely revoked?</dt>
+    <dd>It means the issuer refused it just now (401 or its invalid-key answer). Issuers give the same answer for revoked, deleted and mistyped keys, so keyroll does not claim more than that. It never calls a key rejected on a 403, 429, 5xx or timeout; those show as unknown.</dd>
+    <dt>Can I run it in CI?</dt>
+    <dd>Map and check work anywhere (<code>--root .</code>, <code>--json</code>, exit code 1 on a rejected key that is still configured). Rotate is meant for your own machine.</dd>
+    <dt>What does the fingerprint reveal?</dt>
+    <dd>32 bits of a SHA-256 of the key: enough to tell your keys apart in a list, useless for recovering the key.</dd>
+    <dt>Windows?</dt>
+    <dd>Yes: same binary, <code>%APPDATA%</code> and <code>%USERPROFILE%</code> paths, PowerShell profiles and history. Without a terminal for the hidden prompt, pipe the key in (<code>Get-Clipboard | keyroll rotate …</code>).</dd>
+  </dl>
+</section>
+</article>
+</div>
+<footer>
+  <a href="../">keyroll</a>
+  <a href="https://github.com/Blackman99/keyroll">GitHub</a>
+  <a href="https://github.com/Blackman99/keyroll/issues/new/choose">Report a location we miss</a>
+  <span class="sp"></span><span>MIT</span>
+</footer>
+<script>
+document.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(document.getElementById(b.dataset.copy).textContent); b.textContent = "copied"; b.classList.add("ok"); } catch { b.textContent = "select"; }
+  setTimeout(() => { b.textContent = "copy"; b.classList.remove("ok"); }, 1600);
+}));
+const links = [...document.querySelectorAll(".docs nav a[href^='#']")];
+const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) links.forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id)); }), { rootMargin: "-20% 0px -70% 0px" });
+document.querySelectorAll(".docs section").forEach(s => io.observe(s));
+</script>
+</body>
+</html>

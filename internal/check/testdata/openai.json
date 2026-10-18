@@ -1,0 +1,7 @@
+{
+ "provider": "openai",
+ "recorded": "2026-10-18T10:40+08:00",
+ "request": "GET with an obviously fake key",
+ "status": 401,
+ "body": "{\n  \"error\": {\n    \"message\": \"Incorrect API key provided: sk-proj-*************************************0000. You can find your API key at https://platform.openai.com/account/api-keys.\",\n    \"type\": \"invalid_request_error\",\n    \"param\": null,\n    \"code\": \"invalid_api_key\"\n  }\n}"
+}

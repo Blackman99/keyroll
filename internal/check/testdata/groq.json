@@ -1,0 +1,7 @@
+{
+ "provider": "groq",
+ "recorded": "2026-10-18T10:40+08:00",
+ "request": "GET with an obviously fake key",
+ "status": 401,
+ "body": "{\"error\":{\"message\":\"Invalid API Key\",\"type\":\"invalid_request_error\",\"code\":\"invalid_api_key\"}}\n"
+}

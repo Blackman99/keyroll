@@ -1,0 +1,7 @@
+{
+ "provider": "cerebras",
+ "recorded": "2026-10-18T10:40+08:00",
+ "request": "GET with an obviously fake key",
+ "status": 401,
+ "body": "{\"message\":\"Wrong API Key\",\"type\":\"invalid_request_error\",\"param\":\"api_key\",\"code\":\"wrong_api_key\"}"
+}

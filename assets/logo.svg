@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>keyroll</title>
+  <!-- a switchboard plug whose tip is a key blade, trailing a red braided cord loop -->
+  <defs>
+    <path id="c1" d="M256 372 C256 432 250 466 214 478 C168 494 128 468 132 430 C136 392 184 384 206 410"/>
+    <path id="c2" d="M206 410 C228 436 222 470 196 506"/>
+  </defs>
+  <g transform="translate(256 256) scale(1.12) translate(-256 -256) translate(32 38) rotate(42 256 256) translate(0 -6) scale(.94)">
+    <use href="#c1" fill="none" stroke="#17150f" stroke-width="38" stroke-linecap="round"/>
+    <use href="#c1" fill="none" stroke="#c2412d" stroke-width="28" stroke-linecap="round"/>
+    <use href="#c1" fill="none" stroke="#17150f" stroke-opacity=".3" stroke-width="28" stroke-dasharray="4 7"/>
+    <use href="#c2" fill="none" stroke="#17150f" stroke-width="38" stroke-linecap="round"/>
+    <use href="#c2" fill="none" stroke="#c2412d" stroke-width="28" stroke-linecap="round"/>
+    <use href="#c2" fill="none" stroke="#17150f" stroke-opacity=".3" stroke-width="28" stroke-dasharray="4 7"/>
+    <!-- key blade: rounded tip, V-cut bitting on one edge, a groove down the middle -->
+    <path d="M231 214 V44 Q231 18 256 14 L270 24 L281 46 V70 L268 82 L281 96 V112 L264 128 L281 144 V160 L270 172 L281 184 V214 Z" fill="#c2c9c6" stroke="#17150f" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M249 46 V200" stroke="#8a9390" stroke-width="7" stroke-linecap="round"/>
+    <!-- nickel collar -->
+    <rect x="214" y="208" width="84" height="36" rx="7" fill="#c2c9c6" stroke="#17150f" stroke-width="8"/>
+    <path d="M216 226 H296" stroke="#17150f" stroke-width="5"/>
+    <!-- bakelite handle, red band -->
+    <rect x="208" y="240" width="96" height="136" rx="26" fill="#17150f"/>
+    <rect x="208" y="320" width="96" height="22" fill="#c2412d"/>
+    <path d="M232 260 V302" stroke="#4d493f" stroke-width="9" stroke-linecap="round"/>
+  </g>
+</svg>

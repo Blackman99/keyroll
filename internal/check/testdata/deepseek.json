@@ -1,0 +1,7 @@
+{
+ "provider": "deepseek",
+ "recorded": "2026-10-18T10:40+08:00",
+ "request": "GET with an obviously fake key",
+ "status": 401,
+ "body": "{\"error\":{\"message\":\"Authentication Fails, Your api key: ****0000 is invalid (request_id: 2788640d-1240-4199-aa5e-356d7f3e940a)\",\"type\":\"authentication_error\",\"param\":null,\"code\":\"invalid_request_error\"}}"
+}

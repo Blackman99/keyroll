@@ -1,0 +1,7 @@
+{
+ "provider": "anthropic",
+ "recorded": "2026-10-18T10:40+08:00",
+ "request": "GET with an obviously fake key",
+ "status": 401,
+ "body": "{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"invalid x-api-key\"},\"request_id\":\"req_011Cg8updEpLT2vz3jVPHMw4\"}"
+}

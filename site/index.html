@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>keyroll · where else did I paste that key?</title>
+<meta name="description" content="Find every copy of your AI provider API keys on this machine (Claude Code, Codex, OpenCode, Cline, shell rc, project .env, backups, history), ask each issuer which still work, and rotate a key everywhere at once.">
+<link rel="canonical" href="https://blackman99.github.io/keyroll/">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="logo-512.png" type="image/png" sizes="512x512">
+<link rel="apple-touch-icon" href="logo-512.png">
+<meta name="theme-color" content="#8fa597">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="keyroll">
+<meta property="og:url" content="https://blackman99.github.io/keyroll/">
+<meta property="og:title" content="keyroll · where else did I paste that key?">
+<meta property="og:description" content="One key, nine copies: Claude Code, its backups, OpenCode's old auth.json, your .zshrc, a project .env. keyroll finds them all, asks the issuer which keys still work, and rotates one everywhere at once.">
+<meta property="og:image" content="https://blackman99.github.io/keyroll/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A cord switchboard: one red Anthropic key patched into nine jacks labelled with the files that hold a copy of it.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="keyroll · where else did I paste that key?">
+<meta name="twitter:description" content="Find every copy of your AI provider keys, see which still work, rotate one everywhere at once. Offline map, Go binary, MCP server.">
+<meta name="twitter:image" content="https://blackman99.github.io/keyroll/og.png">
+<meta name="twitter:image:alt" content="A cord switchboard: one red Anthropic key patched into nine jacks labelled with the files that hold a copy of it.">
+<link rel="preload" href="fonts/libre-franklin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/chivo-mono.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#rack">Skip the switchboard</a>
+<header class="crown">
+  <div class="plate">
+    <h1>keyroll<span class="dot">.</span></h1>
+    <div class="meter" aria-live="polite">ON THE BOARD<output id="meter">0 KEYS</output></div>
+    <div class="sub">Where else did I paste that key?</div>
+  </div>
+  <div class="pitch">
+    <p style="margin:0">After a leak the advice is always <em>“revoke it and replace it everywhere.”</em> keyroll is the <strong>everywhere</strong>: it maps every copy of your AI provider keys on this machine, asks each issuer which still work, and rotates one key in every file at once.</p>
+    <div class="install"><code id="inst">curl -fsSL https://<wbr>blackman99.github.io/<wbr>keyroll/install.sh <wbr>| sh</code><button class="copy" data-copy="inst" type="button">copy</button></div>
+    <p class="alt">or <code>go install github.com/<wbr>Blackman99/<wbr>keyroll/<wbr>cmd/<wbr>keyroll@latest</code> · <a href="https://github.com/Blackman99/keyroll/releases/latest">binaries</a> for macOS, Linux, Windows · <a href="install.sh">read install.sh</a> first</p>
+  </div>
+</header>
+
+<main>
+<section class="board" aria-label="Live demo">
+  <div class="cabinet">
+    <div class="stage" id="stage"><pre class="noscript">$ keyroll
+keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
+  ● Anthropic   sk-ant-…M1AA   #38bb1575  9 copies  3 live · 1 database · 5 leftovers</pre></div>
+    <div class="levers" role="group" aria-label="Lever keys">
+      <button class="lever" id="lv-map" type="button" aria-pressed="false"><span class="base"><span class="arm"></span></span><span class="lbl">MAP</span></button>
+      <button class="lever" id="lv-check" type="button" aria-pressed="false"><span class="base"><span class="arm"></span></span><span class="lbl">CHECK</span></button>
+      <button class="lever" id="lv-rotate" type="button" aria-pressed="false"><span class="base"><span class="arm"></span></span><span class="lbl">ROTATE</span></button>
+    </div>
+    <div class="detail" id="detail" role="tooltip"></div>
+  </div>
+  <p class="caption">
+    <span><span class="swatch" style="background:var(--ring)"></span>a cord is in: this file holds the key</span>
+    <span><span class="swatch" style="background:var(--dead)"></span>a tool here will fail on its next request</span>
+    <span><span class="swatch" style="background:var(--alive)"></span>rewritten with the new key</span>
+    <span><span class="swatch" style="background:#050504"></span>leftover scrubbed (busy plug)</span>
+    <span>Plugs and jacks are clickable.</span>
+  </p>
+  <div class="log">
+    <div class="head"><span>operator’s log · keyroll on the demo home in the repo (check answers simulated)</span><button id="replay" type="button" hidden>replay</button></div>
+    <pre id="log" aria-live="polite"></pre>
+  </div>
+</section>
+
+<div class="rack" id="rack">
+  <section class="card" id="why">
+    <div class="strip"><span class="no">01</span><h2>Why</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <h3>“Revoke and replace those keys.” Replace them where, exactly?</h3>
+    <p>On 2026-10-17 OpenCode said its Console had been breached and that <a href="https://news.ycombinator.com/item?id=50133401">third-party provider keys saved in a workspace may have been exposed</a>. <a href="https://x.com/opencode/status/2111519637049319818">Their post</a> passed a million views; people reported charges on keys they had forgotten about. Anthropic’s Lydia Hallie said they had <a href="https://x.com/lydiahallie/status/2111563956666110287">revoked the Claude API keys they believe were affected</a>, so some agents started failing with 401s overnight. And after rotating by hand, agents broke with <a href="https://github.com/anomalyco/opencode/issues/56556">“this API key has expired”</a>, because the old key was still configured somewhere else.</p>
+    <div class="who">
+      <p><b>Who was actually affected.</b> OpenCode says it was <a href="https://x.com/opencode/status/2111519637049319818">1.4% of OpenCode Console users, the subset who had linked external providers</a>, and that everyone affected got an email. Keys you typed into the local OpenCode client reportedly never reached their servers (co-founder Dax, <a href="https://x.com/Jarvist719/status/2111628993623388190">as relayed here</a>; secondhand).</p>
+      <p>Either way, you can’t revoke what you can’t find: <code>keyroll</code> shows where each key sits, <code>keyroll check</code> tells you whether the issuer already revoked it, and <code>keyroll rotate</code> replaces it everywhere. If you ever pasted a key into an agent chat, it is also in the session transcripts; <a href="https://github.com/Blackman99/spillscan">spillscan</a> finds those.</p>
+    </div>
+    <p>One person <a href="https://x.com/HeyAIpenguin/status/2111579446847156485">audited their Mac and reported 1 token in 7 copies</a>, two of them made by Claude Code’s automatic backups. That hunt is what keyroll does, in under a second, without sending anything anywhere.</p>
+  </section>
+
+  <section class="card" id="map">
+    <div class="strip"><span class="no">02</span><h2>Map · offline</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <h3>Every copy, grouped by key, never printed.</h3>
+    <p>keyroll reads the places agent tools keep keys (<a href="docs/#where">the full list</a>), your shell rc files and history, and the <code>.env</code> files in your projects. It shows each key as issuer, the first characters and the last four (<code>sk-ant-…M1AA</code>), and a fingerprint, the first 8 hex characters of its SHA-256. The key itself never appears in output, JSON or MCP.</p>
+    <div class="cls">
+      <div><b><span class="lampdot" style="background:var(--ring)"></span>live</b><p>A tool reads it. <code>rotate</code> writes the new key here.</p></div>
+      <div><b><span class="lampdot" style="background:var(--hammer-hi)"></span>leftover</b><p>Nothing reads it, but it still unlocks your account: Claude Code backups, OpenCode’s pre-v2 <code>auth.json</code>, shell history, <code>.env.example</code>. <code>rotate</code> scrubs it and does <em>not</em> add the new key, so rotation shrinks the number of copies.</p></div>
+      <div><b><span class="lampdot" style="background:var(--dead)"></span>database</b><p>OpenCode v2 keeps keys in SQLite. keyroll never edits a database; it prints the exact command, like <code>opencode auth login anthropic</code>.</p></div>
+    </div>
+    <div class="term"><button class="copy" data-copy="c-map" type="button">copy</button><span id="c-map">$ keyroll</span>
+<span style="color:#8d958f">  ● Anthropic   sk-ant-…M1AA  #38bb1575  9 copies  3 live · 1 database · 5 leftovers</span></div>
+  </section>
+
+  <section class="card" id="check">
+    <div class="strip"><span class="no">03</span><h2>Check · one free GET per key</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <h3>Ask the issuer, not a guess.</h3>
+    <p><code>keyroll check</code> sends each key to its own issuer only, in a header, to an endpoint that costs nothing: a model list or the key-info route. Redirects are not followed, so the header cannot travel to another host. OpenRouter also tells us whether the key has a spend limit, and keyroll says so when it doesn’t. These are the answers each endpoint gave a fake key when we recorded them for the tests:</p>
+    <div class="tablewrap"><table class="ring">
+      <thead><tr><th>Issuer</th><th>Endpoint</th><th>Fake key gets</th><th>keyroll says</th></tr></thead>
+      <tbody>
+        <tr><td>Anthropic</td><td><code>GET /v1/models</code></td><td>401</td><td>rejected</td></tr>
+        <tr><td>OpenAI</td><td><code>GET /v1/models</code></td><td>401</td><td>rejected</td></tr>
+        <tr><td>OpenRouter</td><td><code>GET /api/v1/key</code></td><td>401 (a live key returns limit and usage)</td><td>rejected / alive · no spend limit</td></tr>
+        <tr><td>Google AI Studio</td><td><code>GET /v1beta/models</code>, key in <code>x-goog-api-key</code></td><td>400 API_KEY_INVALID</td><td>rejected</td></tr>
+        <tr><td>xAI</td><td><code>GET /v1/api-key</code></td><td>400</td><td>rejected</td></tr>
+        <tr><td>DeepSeek</td><td><code>GET /user/balance</code></td><td>401</td><td>rejected</td></tr>
+        <tr><td>Groq · Mistral · Together · Cerebras · Fireworks · Moonshot · Z.ai · Hugging Face</td><td>models / whoami</td><td>401</td><td>rejected</td></tr>
+        <tr><td>Perplexity</td><td>none free</td><td>404 on <code>/models</code></td><td>skipped, mapped only</td></tr>
+      </tbody>
+    </table></div>
+    <p class="swipe">swipe the table →</p>
+    <p><b>REJECTED</b> means the issuer refuses the key: revoked, deleted or mistyped (they answer all three the same way, so keyroll claims no more). If Claude Code started failing with 401 tonight, this is the line that tells you it is the issuer, not your code. A 402 or an out-of-credit 429 means the key works; a bare 429, any other 403 or a 5xx is <em>unknown</em>, never rejected. Exit code 1 means a rejected key is still configured somewhere.</p>
+  </section>
+
+  <section class="card" id="rotate">
+    <div class="strip"><span class="no">04</span><h2>Rotate · paste once</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <h3>Every live copy rewritten, byte for byte. Everything else left alone.</h3>
+    <ul>
+      <li>The new key is read from a hidden prompt or stdin, never from an argument (shell history), and keyroll asks the issuer whether it works before writing it. Pasting an OpenAI key where an Anthropic one belongs is refused.</li>
+      <li>Only the old key’s bytes are replaced. Comments, key order, indentation and every other key in the file stay as they were, so <code>.claude.json</code> stays valid JSON and your <code>.zshrc</code> diff is one line.</li>
+      <li>Each file is written atomically: temp file in the same folder, original permissions (<code>600</code> stays <code>600</code>), fsync, rename. Symlinks are written through to their target. If a file changes while keyroll is rewriting it, that file is left untouched.</li>
+      <li>Originals go to <code>~/.keyroll/backups/</code> (folder 700, files 600) and show up in the next map as leftovers, so you can delete them once the old key is revoked.</li>
+      <li>Afterwards keyroll scans again and tells you how many places still hold the old key, then the revoke and spend-limit links for that issuer.</li>
+      <li><b>The last line is always the old key’s status.</b> keyroll asks the issuer one more time: <em>now REFUSES it, revoked</em>, or <em>still ACCEPTS it, NOT revoked yet</em>, because a copy keyroll cannot see (a hosted console, CI secrets, another machine) can still spend on it until you click revoke.</li>
+    </ul>
+    <div class="term wrapcmd"><button class="copy" data-copy="c-rot" type="button">copy</button><span id="c-rot">$ keyroll rotate 38bb1575 --dry-run</span></div>
+  </section>
+
+  <section class="card" id="never">
+    <div class="strip"><span class="no">05</span><h2>Never</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <h3>What it will not do.</h3>
+    <ul class="never">
+      <li><span>Print a key, put one in JSON, or hand one to an agent over MCP.</span></li>
+      <li><span>Send anything during <code>keyroll</code> (map). <code>check</code> contacts only each key’s own issuer.</span></li>
+      <li><span>Edit a database, a keychain, or a file it cannot write back atomically.</span></li>
+      <li><span>Store keys. It is not a secret manager; it helps you get to one.</span></li>
+      <li><span>Read agent chat transcripts. Keys pasted into chats are <a href="https://github.com/Blackman99/spillscan">spillscan</a>’s job.</span></li>
+    </ul>
+  </section>
+
+  <section class="card" id="agents">
+    <div class="strip"><span class="no">06</span><h2>For agents · MCP</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <h3>Let your agent ask “where is this key?”, read-only.</h3>
+    <p><code>keyroll mcp</code> is a stdio MCP server with two read-only tools: <code>key_map</code> (keys, fingerprints, copy counts) and <code>key_copies</code> (every file holding one key). Neither returns key material, and there is no tool that writes; rotating stays a human step.</p>
+    <div class="term wrapcmd"><button class="copy" data-copy="c-mcp" type="button">copy</button><span id="c-mcp">claude mcp add keyroll -- keyroll mcp</span></div>
+  </section>
+
+  <section class="card" id="others">
+    <div class="strip"><span class="no">07</span><h2>Neighbours</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <div class="boundary">
+      <div><b><a href="https://github.com/trufflesecurity/trufflehog">trufflehog</a> / gitleaks</b>Find secrets in repos and history. They don’t group copies of one key across your home folder or rotate it.</div>
+      <div><b><a href="https://github.com/hugomn/heldkeys">heldkeys</a></b>Lists which tools hold keys. keyroll adds the issuer check, leftovers, OpenCode v2’s database, and rotation.</div>
+      <div><b><a href="https://github.com/Blackman99/spillscan">spillscan</a></b>Keys pasted into Claude Code / Codex / Cursor transcripts. keyroll stays out of transcripts.</div>
+    </div>
+  </section>
+</div>
+</main>
+
+<footer>
+  <a href="https://github.com/Blackman99/keyroll">GitHub</a>
+  <a href="docs/">Docs</a>
+  <a href="docs/#faq">FAQ</a>
+  <a href="https://github.com/Blackman99/keyroll/releases">Releases</a>
+  <span class="sp"></span>
+  <span>MIT · Go, no dependencies</span>
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+name: CI
+on:
+  push: {branches: [main]}
+  pull_request:
+  schedule: [{cron: '17 3 * * 1'}]   # weekly: do the providers still answer the way we expect?
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with: {go-version-file: go.mod}
+      - if: runner.os == 'Linux'
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - if: runner.os == 'Linux'
+        run: go test -race ./...
+      - if: runner.os != 'Linux'
+        run: go test ./...
+      - name: smoke
+        shell: bash
+        run: |
+          go build -o kr ./cmd/keyroll
+          ./kr version
+          ./kr --help | head -3
+          ./kr paths | tail -3
+          ./kr --no-walk --json > /dev/null
+  real-tools:
+    name: real Codex + llm CLIs, real provider APIs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with: {go-version-file: go.mod}
+      - uses: actions/setup-node@v5
+        with: {node-version: 22}
+      - run: npm install -g @openai/codex
+      - run: pipx install llm
+      - run: ./scripts/integration.sh
