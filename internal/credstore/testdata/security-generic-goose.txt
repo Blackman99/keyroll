@@ -1,0 +1,20 @@
+keychain: "/Users/sam/Library/Keychains/login.keychain-db"
+version: 512
+class: "genp"
+attributes:
+    0x00000007 <blob>="goose"
+    0x00000008 <blob>=<NULL>
+    "acct"<blob>="secrets"
+    "cdat"<timedate>=0x32303236303731313130303030305A00  "20260711100000Z\000"
+    "crtr"<uint32>=<NULL>
+    "cusi"<sint32>=<NULL>
+    "desc"<blob>=<NULL>
+    "gena"<blob>="{{SECRET}}"
+    "icmt"<blob>=<NULL>
+    "invi"<sint32>=<NULL>
+    "mdat"<timedate>=0x32303236303932323130303030305A00  "20260922100000Z\000"
+    "nega"<sint32>=<NULL>
+    "prot"<blob>=<NULL>
+    "scrp"<sint32>=<NULL>
+    "svce"<blob>="goose"
+    "type"<uint32>=<NULL>

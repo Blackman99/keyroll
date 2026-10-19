@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/scan"
 )
 
@@ -81,7 +82,7 @@ func tools() []map[string]any {
 	return []map[string]any{
 		{
 			"name":        "key_map",
-			"description": "List every AI provider API key found on this machine (agent harness configs, app state, shell files, .env files, backups, history) grouped by fingerprint, with every place each copy sits. Values are never returned, only provider, redacted hint (prefix + last 4) and fingerprint. Offline.",
+			"description": "List every AI provider API key found on this machine (agent harness configs, app state, shell files, .env files, backups, history) grouped by fingerprint, with every place each copy sits, plus OS credential-store entries (macOS Keychain, Windows Credential Manager, Secret Service) that known AI tools keep keys in, listed by name only. Values are never returned, only provider, redacted hint (prefix + last 4) and fingerprint. Offline.",
 			"inputSchema": map[string]any{"type": "object", "properties": map[string]any{
 				"provider": map[string]any{"type": "string", "description": "Only this provider id (anthropic, openai, openrouter, google, groq, xai, deepseek, mistral, ...)"},
 			}},
@@ -89,7 +90,7 @@ func tools() []map[string]any {
 		},
 		{
 			"name":        "key_copies",
-			"description": "For one key fingerprint (or a unique prefix, or its last 4 characters), list every file that holds a copy, whether rotation would rewrite it (live), scrub it (leftover) or needs a manual step (database). Offline, read-only.",
+			"description": "For one key fingerprint (or a unique prefix, or its last 4 characters), list every file that holds a copy, whether rotation would rewrite it (live), scrub it (leftover) or needs a manual step (database), and the credential-store entries (names only) that may also hold it and must be replaced by hand. Offline, read-only.",
 			"inputSchema": map[string]any{"type": "object", "required": []string{"fingerprint"}, "properties": map[string]any{
 				"fingerprint": map[string]any{"type": "string", "description": "8-hex fingerprint from key_map, a unique prefix, or the last 4 characters of the key hint"},
 			}},
@@ -113,6 +114,10 @@ func call(name string, args map[string]any, sc Scanner) (string, bool) {
 				}
 			}
 			r.Keys = keep
+			if r.CredentialStore != nil {
+				cs := r.CredentialStore.Filter(p)
+				r.CredentialStore = &cs
+			}
 		}
 		b, _ := json.MarshalIndent(r, "", " ")
 		return string(b), false
@@ -123,7 +128,10 @@ func call(name string, args map[string]any, sc Scanner) (string, bool) {
 		case 0:
 			return fmt.Sprintf("no key matches %q; call key_map for fingerprints", q), true
 		case 1:
-			b, _ := json.MarshalIndent(ks[0], "", " ")
+			b, _ := json.MarshalIndent(struct {
+				*scan.Key
+				Stores []credstore.Entry `json:"credential_store,omitempty"`
+			}{ks[0], r.CredentialStore.For(ks[0].Provider)}, "", " ")
 			return string(b), false
 		}
 		return fmt.Sprintf("%q matches %d keys; use more characters of the fingerprint", q, len(ks)), true

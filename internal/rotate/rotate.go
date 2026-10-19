@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/provider"
 	"github.com/Blackman99/keyroll/internal/scan"
@@ -41,6 +42,9 @@ type Step struct {
 type Plan struct {
 	Key   *scan.Key `json:"key"`
 	Steps []Step    `json:"steps"`
+	// Stores are credential-store entries that may hold this key. keyroll
+	// never reads their values, so it cannot know; they are by-hand steps.
+	Stores []credstore.Entry `json:"credential_store,omitempty"`
 }
 
 // Marker replaces the old key in leftovers. It is not key-shaped, so no tool

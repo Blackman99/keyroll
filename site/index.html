@@ -61,10 +61,11 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
     <span><span class="swatch" style="background:var(--dead)"></span>a tool here will fail on its next request</span>
     <span><span class="swatch" style="background:var(--alive)"></span>rewritten with the new key</span>
     <span><span class="swatch" style="background:#050504"></span>leftover scrubbed (busy plug)</span>
+    <span><span class="swatch diamond"></span>Keychain entry: name only, no cord, by hand</span>
     <span>Plugs and jacks are clickable.</span>
   </p>
   <div class="log">
-    <div class="head"><span>operator’s log · keyroll on the demo home in the repo (check answers simulated)</span><button id="replay" type="button" hidden>replay</button></div>
+    <div class="head"><span>operator’s log · keyroll on the repo’s demo home (check answers and Keychain entry simulated)</span><button id="replay" type="button" hidden>replay</button></div>
     <pre id="log" aria-live="polite"></pre>
   </div>
 </section>
@@ -89,9 +90,11 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
       <div><b><span class="lampdot" style="background:var(--ring)"></span>live</b><p>A tool reads it. <code>rotate</code> writes the new key here.</p></div>
       <div><b><span class="lampdot" style="background:var(--hammer-hi)"></span>leftover</b><p>Nothing reads it, but it still unlocks your account: Claude Code backups, OpenCode’s pre-v2 <code>auth.json</code>, shell history, <code>.env.example</code>. <code>rotate</code> scrubs it and does <em>not</em> add the new key, so rotation shrinks the number of copies.</p></div>
       <div><b><span class="lampdot" style="background:var(--dead)"></span>database</b><p>OpenCode v2 keeps keys in SQLite. keyroll never edits a database; it prints the exact command, like <code>opencode auth login anthropic</code>.</p></div>
+      <div><b><span class="lampdot diamond"></span>credential store</b><p>Claude Code, Codex, Gemini CLI, Goose and Zed can keep a key in the macOS Keychain, Windows Credential Manager or Linux Secret Service. keyroll asks whether those entries exist, <em>by name</em>, never reads a value, and lists each one as a by-hand step. <a href="docs/#stores">Which names</a>.</p></div>
     </div>
     <div class="term"><button class="copy" data-copy="c-map" type="button">copy</button><span id="c-map">$ keyroll</span>
-<span style="color:#8d958f">  ● Anthropic   sk-ant-…M1AA  #38bb1575  9 copies  3 live · 1 database · 5 leftovers</span></div>
+<span style="color:#8d958f">  ● Anthropic   sk-ant-…M1AA  #38bb1575  9 copies  3 live · 1 database · 5 leftovers
+  ◇ credential store  macOS Keychain   1 entry  by name only: keyroll never reads these values</span></div>
   </section>
 
   <section class="card" id="check">
@@ -123,6 +126,7 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
       <li>Only the old key’s bytes are replaced. Comments, key order, indentation and every other key in the file stay as they were, so <code>.claude.json</code> stays valid JSON and your <code>.zshrc</code> diff is one line.</li>
       <li>Each file is written atomically: temp file in the same folder, original permissions (<code>600</code> stays <code>600</code>), fsync, rename. Symlinks are written through to their target. If a file changes while keyroll is rewriting it, that file is left untouched.</li>
       <li>Originals go to <code>~/.keyroll/backups/</code> (folder 700, files 600) and show up in the next map as leftovers, so you can delete them once the old key is revoked.</li>
+      <li>A credential-store entry that may hold the key (say Claude Code’s <code>"Claude Code"</code> Keychain item) is listed with that tool’s own re-login step. keyroll cannot see whether it holds the old key, so it never touches it and does not count it as a copy.</li>
       <li>Afterwards keyroll scans again and tells you how many places still hold the old key, then the revoke and spend-limit links for that issuer.</li>
       <li><b>The last line is always the old key’s status.</b> keyroll asks the issuer one more time: <em>now REFUSES it, revoked</em>, or <em>still ACCEPTS it, NOT revoked yet</em>, because a copy keyroll cannot see (a hosted console, CI secrets, another machine) can still spend on it until you click revoke.</li>
     </ul>
@@ -134,6 +138,7 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
     <h3>What it will not do.</h3>
     <ul class="never">
       <li><span>Print a key, put one in JSON, or hand one to an agent over MCP.</span></li>
+      <li><span>Read a value from your Keychain, Credential Manager or Secret Service. It asks whether an entry with a known name exists, and that is all (<code>--no-credstore</code> skips even that).</span></li>
       <li><span>Send anything during <code>keyroll</code> (map). <code>check</code> contacts only each key’s own issuer.</span></li>
       <li><span>Edit a database, a keychain, or a file it cannot write back atomically.</span></li>
       <li><span>Store keys. It is not a secret manager; it helps you get to one.</span></li>
@@ -144,7 +149,7 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
   <section class="card" id="agents">
     <div class="strip"><span class="no">06</span><h2>For agents · MCP</h2><span class="jk"><i></i><i></i><i></i></span></div>
     <h3>Let your agent ask “where is this key?”, read-only.</h3>
-    <p><code>keyroll mcp</code> is a stdio MCP server with two read-only tools: <code>key_map</code> (keys, fingerprints, copy counts) and <code>key_copies</code> (every file holding one key). Neither returns key material, and there is no tool that writes; rotating stays a human step.</p>
+    <p><code>keyroll mcp</code> is a stdio MCP server with two read-only tools: <code>key_map</code> (keys, fingerprints, copy counts) and <code>key_copies</code> (every file holding one key, plus credential-store entries by name). Neither returns key material, and there is no tool that writes; rotating stays a human step.</p>
     <div class="term wrapcmd"><button class="copy" data-copy="c-mcp" type="button">copy</button><span id="c-mcp">claude mcp add keyroll -- keyroll mcp</span></div>
   </section>
 

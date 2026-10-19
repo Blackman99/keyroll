@@ -1,0 +1,13 @@
+
+Derzeit gespeicherte Anmeldeinformationen:
+
+    Ziel: LegacyGeneric:target=gemini-cli-oauth/main-account
+    Typ: Generisch 
+    Benutzer: main-account
+    Lokale Computerbeibehaltung
+    
+    Ziel: LegacyGeneric:target=git:https://github.com
+    Typ: Generisch 
+    Benutzer: sam
+    Lokale Computerbeibehaltung
+    
