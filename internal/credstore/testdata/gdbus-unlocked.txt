@@ -1,0 +1,1 @@
+([objectpath '/org/freedesktop/secrets/collection/login/12'], @ao [])

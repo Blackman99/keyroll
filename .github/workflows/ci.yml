@@ -31,6 +31,12 @@ jobs:
           ./kr --help | head -3
           ./kr paths | tail -3
           ./kr --no-walk --json > /dev/null
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gnome-keyring libsecret-tools libglib2.0-bin dbus-x11
+      - name: real credential store (names only, value never printed)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then dbus-run-session -- ./scripts/credstore-smoke.sh; else ./scripts/credstore-smoke.sh; fi
   real-tools:
     name: real Codex + llm CLIs, real provider APIs
     runs-on: ubuntu-latest

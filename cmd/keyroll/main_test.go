@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Blackman99/keyroll/internal/check"
+	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/testhome"
 )
@@ -250,5 +252,125 @@ func TestRotateEndsWithOldKeyVerdict(t *testing.T) {
 	j := kr(t, t.TempDir(), "", srv, "check", "--json")
 	if j.stdout != "[]\n" {
 		t.Fatalf("empty check json: %q", j.stdout)
+	}
+}
+
+// macStores answers like a Mac whose Keychain holds Claude Code's Console key,
+// its claude.ai login, Goose's secrets blob and Zed's OpenAI key. The fixtures
+// are synthetic `security` outputs; {{SECRET}} becomes a fake key, standing in
+// for anything secret-looking, and must never surface.
+func macStores(t *testing.T, k testhome.Keys) (*credstore.Canned, func() credstore.Result) {
+	t.Helper()
+	fx := func(name string) []byte {
+		b, err := os.ReadFile(filepath.Join("..", "..", "internal", "credstore", "testdata", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return []byte(strings.ReplaceAll(string(b), "{{SECRET}}", k.Anthropic))
+	}
+	c := &credstore.Canned{Replies: map[string]credstore.Reply{
+		"security find-generic-password -s Claude Code":                {Out: fx("security-generic-claude.txt")},
+		"security find-generic-password -s Claude Code-credentials":    {Out: fx("security-generic-claude-credentials.txt")},
+		"security find-generic-password -s goose":                      {Out: fx("security-generic-goose.txt")},
+		"security find-internet-password -s https://api.openai.com/v1": {Out: fx("security-internet-zed-openai.txt")},
+	}}
+	return c, func() credstore.Result {
+		return credstore.Lookup(context.Background(), credstore.Env{GOOS: "darwin", Run: c.Run})
+	}
+}
+
+func krStores(t *testing.T, home, stdin string, stores func() credstore.Result, args ...string) run {
+	t.Helper()
+	a, out, errb := newApp(home, stdin, nil)
+	a.stores = stores
+	code := a.run(args)
+	return run{code, out.String(), errb.String()}
+}
+
+func TestCredentialStoreEntriesAreByHandNamesOnly(t *testing.T) {
+	home := t.TempDir()
+	k := testhome.Build(home)
+	canned, stores := macStores(t, k)
+
+	m := krStores(t, home, "", stores)
+	for _, want := range []string{"credential store", "macOS Keychain", "4 entries", "Claude Code-credentials", "login token, not an API key",
+		"Anthropic API key · changed 2026-10-03", "/login with your Console account", "https://api.openai.com/v1",
+		"Reset Key", "every provider key you gave Goose", "asked the macOS Keychain whether 13 known entries exist"} {
+		if !strings.Contains(m.stdout, want) {
+			t.Errorf("map: missing %q in\n%s", want, m.stdout)
+		}
+	}
+	mj := krStores(t, home, "", stores, "--json")
+	var rep struct {
+		CredentialStore struct {
+			Store   string            `json:"store"`
+			Entries []credstore.Entry `json:"entries"`
+		} `json:"credential_store"`
+	}
+	if err := json.Unmarshal([]byte(mj.stdout), &rep); err != nil || rep.CredentialStore.Store != "macOS Keychain" || len(rep.CredentialStore.Entries) != 4 {
+		t.Fatalf("map json: %v %+v", err, rep.CredentialStore)
+	}
+	// --provider keeps that issuer's entries and the multi-issuer ones
+	mp := krStores(t, home, "", stores, "--json", "--provider", "openai")
+	if !strings.Contains(mp.stdout, "api.openai.com") || strings.Contains(mp.stdout, "Claude Code-credentials") || !strings.Contains(mp.stdout, `"Goose"`) {
+		t.Errorf("--provider openai json:\n%s", mp.stdout)
+	}
+
+	dry := krStores(t, home, "", stores, "rotate", "38bb", "--dry-run")
+	if !strings.Contains(dry.stdout, "may hold this key: names only") || !strings.Contains(dry.stdout, "+ 2 credential-store entries to check") ||
+		strings.Contains(dry.stdout, "Claude Code-credentials") || strings.Contains(dry.stdout, "api.openai.com") {
+		t.Errorf("dry run: the Anthropic plan lists Claude Code's key entry and Goose, not the login or Zed's OpenAI key:\n%s", dry.stdout)
+	}
+	dj := krStores(t, home, "", stores, "rotate", "38bb", "--dry-run", "--json")
+	var pl struct {
+		Stores []credstore.Entry `json:"credential_store"`
+	}
+	if err := json.Unmarshal([]byte(dj.stdout), &pl); err != nil || len(pl.Stores) != 2 {
+		t.Fatalf("dry-run json: %v %s", err, dj.stdout)
+	}
+	ok := krStores(t, home, k.NewAnthropic, stores, "rotate", "38bb", "--offline", "--yes")
+	if ok.code != 0 || !strings.Contains(ok.stdout, "Claude Code in the macOS Keychain (\"Claude Code\"), if it holds this key") || !strings.Contains(ok.stdout, "Goose in the macOS Keychain (\"goose\")") {
+		t.Fatalf("rotate: the now-list must name the credential-store entries\n%s%s", ok.stdout, ok.stderr)
+	}
+
+	in := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"key_map","arguments":{}}}` + "\n" +
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"key_copies","arguments":{"fingerprint":"8e46"}}}` + "\n"
+	mc := krStores(t, home, in, stores, "mcp")
+	lines := strings.Split(strings.TrimSpace(mc.stdout), "\n")
+	if len(lines) != 2 || !strings.Contains(lines[0], "Claude Code-credentials") || !strings.Contains(lines[1], "credential_store") || !strings.Contains(lines[1], "goose") {
+		t.Fatalf("mcp:\n%s", mc.stdout)
+	}
+
+	before := len(canned.Calls)
+	ch := krStores(t, home, "", stores, "check", "--json", "--timeout", "1ms")
+	if strings.Contains(ch.stdout, "credential_store") || len(canned.Calls) != before {
+		t.Errorf("check must not ask the credential store")
+	}
+	no := krStores(t, home, "", stores, "--no-credstore")
+	if strings.Contains(no.stdout, "credential store") || len(canned.Calls) != before {
+		t.Errorf("--no-credstore still asked:\n%s", no.stdout)
+	}
+	for _, call := range canned.Calls {
+		if strings.Contains(call, " -w") || strings.Contains(call, " -g") {
+			t.Fatalf("asked for a secret value: %s", call)
+		}
+	}
+	assertNoLeak(t, k, m.stdout, m.stderr, mj.stdout, mp.stdout, dry.stdout, dj.stdout, ok.stdout, ok.stderr, mc.stdout, ch.stdout, no.stdout)
+}
+
+func TestCredentialStoreSkippedIsSaid(t *testing.T) {
+	home := t.TempDir()
+	testhome.Build(home)
+	r := krStores(t, home, "", func() credstore.Result {
+		return credstore.Lookup(context.Background(), credstore.Env{GOOS: "linux", Run: (&credstore.Canned{}).Run})
+	})
+	if !strings.Contains(r.stdout, "credential store not asked: no D-Bus session") {
+		t.Fatalf("%s", r.stdout)
+	}
+	// no keys in files, but a store entry: still shown
+	_, stores := macStores(t, testhome.Fake())
+	e := krStores(t, t.TempDir(), "", stores)
+	if !strings.Contains(e.stdout, "no AI provider keys found") || !strings.Contains(e.stdout, "Claude Code-credentials") {
+		t.Fatalf("empty home with Keychain entries:\n%s", e.stdout)
 	}
 }

@@ -11,7 +11,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/Blackman99/keyroll/internal/check"
+	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
+	"github.com/Blackman99/keyroll/internal/provider"
 	"github.com/Blackman99/keyroll/internal/rotate"
 	"github.com/Blackman99/keyroll/internal/scan"
 )
@@ -169,7 +171,12 @@ func Map(w io.Writer, s Style, r *scan.Report, spillscanOnPath bool) {
 		fmt.Fprintf(w, "%s  no AI provider keys found in %s and %s\n", s.c(s.Bold, "keyroll"),
 			plural(r.FilesScanned, "known file", "known files"), plural(r.DirsWalked, "folder", "folders"))
 		fmt.Fprintf(w, "%s\n", s.c(s.Dim, "  nothing was sent anywhere. `keyroll paths` lists every place it looks."))
+		if cs := r.CredentialStore; cs != nil && len(cs.Entries) > 0 {
+			fmt.Fprintln(w)
+			Stores(w, s, cs)
+		}
 		notScanned(w, s, spillscanOnPath)
+		storeFooter(w, s, r.CredentialStore)
 		return
 	}
 	fmt.Fprintf(w, "%s  %s · %s · %s %s\n\n", s.c(s.Bold, "keyroll"), plural(len(r.Keys), "key", "keys"),
@@ -238,6 +245,10 @@ func Map(w io.Writer, s Style, r *scan.Report, spillscanOnPath bool) {
 		}
 		fmt.Fprintln(w)
 	}
+	if cs := r.CredentialStore; cs != nil && len(cs.Entries) > 0 {
+		Stores(w, s, cs)
+		fmt.Fprintln(w)
+	}
 	var top *scan.Key
 	for _, k := range r.Keys {
 		if k.Kind != "login" && len(k.Copies) > 1 && k.Count(locate.Live) > 0 {
@@ -262,8 +273,76 @@ func Map(w io.Writer, s Style, r *scan.Report, spillscanOnPath bool) {
 	}
 	notScanned(w, s, spillscanOnPath)
 	fmt.Fprintf(w, "%s\n", s.c(s.Dim, fmt.Sprintf("  scanned %s and %s in %.2fs", plural(r.FilesScanned, "file", "files"), plural(r.DirsWalked, "folder", "folders"), r.Elapsed.Seconds())))
+	storeFooter(w, s, r.CredentialStore)
 	if len(r.Unreadable) > 0 {
 		fmt.Fprintf(w, "%s\n", s.c(s.Yellow, fmt.Sprintf("  could not read %s (permissions): %s", plural(len(r.Unreadable), "file", "files"), strings.Join(first(r.Unreadable, 3), ", "))))
+	}
+}
+
+// storeFooter says whether the credential store was asked, and if not, why.
+func storeFooter(w io.Writer, s Style, cs *credstore.Result) {
+	switch {
+	case cs == nil:
+	case cs.Skipped != "":
+		fmt.Fprintf(w, "%s\n", s.c(s.Dim, "  credential store not asked: "+cs.Skipped))
+	case cs.Store != "":
+		fmt.Fprintf(w, "%s\n", s.c(s.Dim, fmt.Sprintf("  asked the %s whether %s exist (names only, never values)", cs.Store, plural(cs.Asked, "known entry", "known entries"))))
+	}
+}
+
+// Holds describes what a credential-store entry keeps, in words.
+func Holds(e credstore.Entry) string {
+	name := e.Provider
+	if p := provider.ByID(e.Provider); p != nil {
+		name = p.Name
+	}
+	switch e.Holds {
+	case credstore.APIKey:
+		if name == "" {
+			return "an API key (custom URL)"
+		}
+		return name + " API key"
+	case credstore.APIKeys:
+		return "every provider key you gave " + e.Tool
+	case credstore.KeyOrLogin:
+		return name + " API key or ChatGPT login"
+	}
+	return "login token, not an API key"
+}
+
+// wrapAt wraps text that starts at column col so no line passes width, and
+// indents continuation lines to col.
+func wrapAt(text string, col, width int) string {
+	return wrap(text, max(40, width-col), col)
+}
+
+// Stores prints the credential-store section of the map: entries by name, what
+// they hold, and the step that replaces them by hand.
+func Stores(w io.Writer, s Style, cs *credstore.Result) {
+	fmt.Fprintf(w, "  %s %s %s  %s\n", s.c(s.Blue, "◇"), s.c(s.Bold, pad("credential store", 17)), pad(cs.Store, 15),
+		s.c(s.Bold, plural(len(cs.Entries), "entry", "entries"))+s.c(s.Dim, "  by name only: keyroll never reads these values"))
+	nameW := 0
+	for _, e := range cs.Entries {
+		nameW = max(nameW, utf8.RuneCountInString(fit(e.Display(), 44)))
+	}
+	for _, e := range cs.Entries {
+		label := s.c(s.Blue, pad("by hand", 9))
+		if e.Holds == credstore.LoginTokens {
+			label = s.c(s.Dim, pad("login", 9))
+		}
+		about := Holds(e)
+		if e.Modified != "" {
+			about += " · changed " + e.Modified
+		}
+		if e.Locked {
+			about += " · in a locked collection"
+		}
+		fmt.Fprintln(w, strings.TrimRight(fmt.Sprintf("      %s %s %s  %s", label, pad(fit(e.Tool, 16), 16), pad(fit(e.Display(), 44), nameW), s.c(s.Dim, about)), " "))
+		color := s.Blue
+		if e.Holds == credstore.LoginTokens {
+			color = s.Dim
+		}
+		fmt.Fprintf(w, "      %s %s\n", strings.Repeat(" ", 26), s.c(color, wrapAt("→ "+e.Manual, 33, s.Width)))
 	}
 }
 
@@ -450,6 +529,17 @@ func Plan(w io.Writer, s Style, pl rotate.Plan, newHint, newState string) {
 		extra := planExtra(st, k.Provider)
 		fmt.Fprintln(w, strings.TrimRight(fmt.Sprintf("  %s %s %s  %s", a, pad(fit(st.Copy.Tool, 15), 15), pad(fit(where(st.Copy), pathW), colW), s.c(s.Dim, extra)), " "))
 	}
+	if len(pl.Stores) > 0 {
+		fmt.Fprintf(w, "\n  %s %s\n", s.c(s.Bold, "credential store"), s.c(s.Dim, wrapAt("("+pl.Stores[0].Store+") may hold this key: names only, keyroll cannot see the values", 19, s.Width)))
+		nameW := 0
+		for _, e := range pl.Stores {
+			nameW = max(nameW, utf8.RuneCountInString(fit(e.Display(), 44)))
+		}
+		for _, e := range pl.Stores {
+			fmt.Fprintln(w, strings.TrimRight(fmt.Sprintf("  %s %s %s  %s", s.c(s.Blue, pad("by hand", 8)), pad(fit(e.Tool, 15), 15), pad(fit(e.Display(), 44), nameW), s.c(s.Dim, Holds(e))), " "))
+			fmt.Fprintf(w, "  %s %s\n", strings.Repeat(" ", 24), s.c(s.Blue, wrapAt("→ "+e.Manual, 27, s.Width)))
+		}
+	}
 	fmt.Fprintln(w)
 }
 
@@ -497,6 +587,10 @@ func Applied(w io.Writer, s Style, res rotate.Result, home string, oldState chec
 			fmt.Fprintf(w, "  %s\n", wrap(fmt.Sprintf("%d. %s: %s", n, st.Copy.Tool, Manual(st.Copy, k.Provider)), s.Width-2, 5))
 			n++
 		}
+	}
+	for _, e := range res.Plan.Stores {
+		fmt.Fprintf(w, "  %s\n", wrap(fmt.Sprintf("%d. %s in the %s (%s), if it holds this key: %s", n, e.Tool, e.Store, e.Display(), e.Manual), s.Width-2, 5))
+		n++
 	}
 	if p != nil && p.KeysURL != "" {
 		if oldState != check.Rejected {

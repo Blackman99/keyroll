@@ -39,6 +39,10 @@
   .docs h3 { font: 800 20px/1.2 var(--sans); margin: 26px 0 8px; }
   .docs p, .docs li { max-width: 72ch; }
   .docs table.ring code { word-break: break-word; }
+  .docs table.stores td:not(:last-child) code { word-break: normal; white-space: nowrap; }
+  .docs table.stores td:last-child { min-width: 15em; }
+  .docs table.stores td:first-child { white-space: nowrap; }
+  @media (max-width: 520px) { .docs table.stores { min-width: 760px; } }
   .cl { font: 700 10px/1 var(--sans); letter-spacing: .12em; text-transform: uppercase; background: var(--strip); padding: 2px 5px; border-radius: 2px; }
   dl.faq dt { font-weight: 800; margin: 18px 0 4px; }
   dl.faq dd { margin: 0; max-width: 72ch; }
@@ -63,7 +67,7 @@
   <div class="strip"><span class="no">01</span><h2>Install</h2></div>
   <h2 class="big">One binary, no dependencies.</h2>
   <div class="term wrapcmd"><button class="copy" data-copy="i1" type="button">copy</button><span id="i1">curl -fsSL https://blackman99.github.io/keyroll/install.sh | sh</span></div>
-  <p>The script picks the archive for your OS and CPU from the latest release, checks it against the release’s <code>checksums.txt</code>, and puts <code>keyroll</code> in <code>~/.local/bin</code> (set <code>KEYROLL_BIN</code> to change that). It is 50 lines; <a href="../install.sh">read it first</a>.</p>
+  <p>The script picks the archive for your OS and CPU from the latest release, checks it against the release’s <code>checksums.txt</code>, and puts <code>keyroll</code> in <code>~/.local/bin</code> (set <code>KEYROLL_BIN</code> to change that). It is 49 lines; <a href="../install.sh">read it first</a>.</p>
   <div class="term wrapcmd"><button class="copy" data-copy="i2" type="button">copy</button><span id="i2">go install github.com/Blackman99/keyroll/cmd/keyroll@latest</span></div>
   <p>Or download <code>keyroll_&lt;os&gt;_&lt;arch&gt;.tar.gz</code> (zip on Windows) from <a href="https://github.com/Blackman99/keyroll/releases/latest">Releases</a>: macOS, Linux and Windows, amd64 and arm64.</p>
 </section>
@@ -87,6 +91,10 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
       leftover  shell history    ~/.zsh_history:2
       …</div>
   <p>Classes: <b>live</b> (a tool reads it), <b>leftover</b> (nothing reads it, but it still works as a key: backups, legacy files, history, templates), <b>database</b> (SQLite app state keyroll never edits; it prints the command that replaces the key instead).</p>
+  <p>After the keys comes the <b>credential store</b> section: entries AI tools keep in the macOS Keychain, Windows Credential Manager or the Secret Service, found <a href="#stores">by name only</a>. keyroll never reads their values, so they have no fingerprint; each shows what it holds and the step that replaces it by hand:</p>
+  <div class="term">  ◇ credential store  macOS Keychain   1 entry  by name only: keyroll never reads these values
+      by hand   Claude Code      "Claude Code"  Anthropic API key · changed 2026-10-03
+                                 → run `claude`, /logout, then /login with your Console account</div>
 
   <h3>keyroll check [fingerprint…]</h3>
   <p>Sends each key to its own issuer, once, to a free read-only endpoint (<a href="#issuers">table</a>), at most 4 at a time with a 10 s limit each (<code>--timeout</code>). Prints <b>ALIVE</b> (the issuer accepts it), <b>REJECTED</b> (the issuer refuses it: revoked, deleted or mistyped), <b>unknown</b> or <b>skipped</b> per key, the spend limit where the issuer exposes it (OpenRouter), and which tools will fail because they still use a rejected key. Their 401s come from the issuer, not from a bug in your code. Exit code 1 when a rejected key is still configured somewhere live.</p>
@@ -99,14 +107,14 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
   <ol>
     <li>The new key is cleaned of quotes and whitespace and refused if it is the same key, a login token, or another issuer’s key.</li>
     <li>Unless <code>--offline</code>, keyroll asks the issuer whether the new key works, and refuses one it rejects.</li>
-    <li>The last line of every rotation asks the issuer about the <b>old</b> key: <b>REFUSES</b> means it is revoked; <b>ACCEPTS</b> means it is not, and copies keyroll cannot see (a hosted console, CI secrets, another machine) can still spend on it.</li>
-    <li>It prints the plan: <b>write</b> for live copies, <b>scrub</b> for leftovers (the old key becomes <code>[revoked-by-keyroll:38bb1575]</code> and the new key is not added), <b>by hand</b> for databases. It asks once (or <code>--yes</code>).</li>
+    <li>It prints the plan: <b>write</b> for live copies, <b>scrub</b> for leftovers (the old key becomes <code>[revoked-by-keyroll:38bb1575]</code> and the new key is not added), <b>by hand</b> for databases, then the <b>credential-store</b> entries of the same issuer that may hold the key (listed by name; keyroll cannot see whether they do). It asks once (or <code>--yes</code>).</li>
     <li>Each file: originals copied to <code>~/.keyroll/backups/&lt;time&gt;-&lt;fp&gt;/</code>, the old key’s bytes replaced, written to a temp file in the same folder with the original mode, fsynced, renamed over. Symlinks are written through to their target. A file that changed during the rotation is left untouched.</li>
-    <li>keyroll scans again and prints how many places still hold the old key, then the manual steps, the issuer’s revoke page and its spend-limit page.</li>
+    <li>keyroll scans again and prints how many places still hold the old key, then the by-hand steps (databases, credential-store entries), the issuer’s revoke page and its spend-limit page.</li>
+    <li>The last line of every rotation asks the issuer about the <b>old</b> key: <b>REFUSES</b> means it is revoked; <b>ACCEPTS</b> means it is not, and copies keyroll cannot see (a hosted console, CI secrets, another machine) can still spend on it.</li>
   </ol>
 
   <h3>keyroll paths</h3>
-  <p>Every fixed location keyroll reads and whether it exists on this machine (<a href="#where">full list</a>).</p>
+  <p>Every fixed location keyroll reads and whether it exists on this machine (<a href="#where">full list</a>), then the credential-store entry names it asks about on this OS.</p>
   <h3>keyroll mcp</h3>
   <p>Read-only MCP server over stdio (<a href="#mcp">details</a>).</p>
 </section>
@@ -129,6 +137,7 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
       <tr><td><code>--yes</code></td><td>rotate</td><td>Skip the confirmation (required when there is no terminal).</td></tr>
       <tr><td><code>--offline</code></td><td>rotate</td><td>Don’t check the new key with its issuer first.</td></tr>
       <tr><td><code>--no-backup</code></td><td>rotate</td><td>Don’t keep originals in <code>~/.keyroll/backups</code>.</td></tr>
+      <tr><td><code>--no-credstore</code></td><td>map, rotate</td><td>Don’t ask the OS credential store (Keychain, Credential Manager, Secret Service) for entry names. <code>check</code> never asks it.</td></tr>
     </tbody>
   </table></div>
   <div class="tablewrap"><table class="ring">
@@ -136,6 +145,7 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
     <tbody>
       <tr><td><code>CODEX_HOME</code>, <code>CLAUDE_CONFIG_DIR</code>, <code>LLM_USER_PATH</code>, <code>OPENCODE_DB</code>, <code>HISTFILE</code></td><td>Honoured the same way the tools themselves honour them.</td></tr>
       <tr><td><code>XDG_CONFIG_HOME</code>, <code>XDG_DATA_HOME</code>, <code>APPDATA</code></td><td>Where config and data folders are on Linux and Windows.</td></tr>
+      <tr><td><code>DBUS_SESSION_BUS_ADDRESS</code>, <code>XDG_RUNTIME_DIR</code></td><td>Linux: the Secret Service is asked only when there is a D-Bus session.</td></tr>
       <tr><td><code>NO_COLOR</code>, <code>FORCE_COLOR</code>, <code>COLUMNS</code></td><td>Output colour and width. Colour is on only for a terminal.</td></tr>
     </tbody>
   </table></div>
@@ -165,8 +175,18 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
         "note": "OpenCode v2 credential store", "manual": "opencode auth login &lt;provider&gt;  (then: opencode auth list)" }
     ]
   }],
-  "files_scanned": 17, "dirs_walked": 4, "roots": ["/home/you"], "elapsed_ms": 9
+  "files_scanned": 17, "dirs_walked": 4, "roots": ["/home/you"], "elapsed_ms": 9,
+  "credential_store": {
+    "store": "macOS Keychain", "asked": 13,
+    "entries": [
+      { "store": "macOS Keychain", "tool": "Claude Code", "name": "Claude Code", "account": "you",
+        "provider": "anthropic", "holds": "api key", "modified": "2026-10-03",
+        "manual": "run `claude`, /logout, then /login with your Console account",
+        "command": "security find-generic-password -s 'Claude Code'" }
+    ]
+  }
 }</div>
+  <p><code>credential_store</code> is left out with <code>--no-credstore</code>; when the store could not be asked it carries <code>skipped</code> with the reason. <code>holds</code> is <code>api key</code>, <code>api keys</code> (several issuers in one entry), <code>api key or login</code> or <code>login</code>. <code>rotate --dry-run --json</code> puts the entries that may hold the key under the plan’s <code>credential_store</code>. No entry ever carries a value.</p>
   <p><code>check --json</code> adds a result per key: <code>state</code>, <code>http</code>, <code>detail</code>, <code>endpoint</code>, <code>ms</code>, and <code>limit_usd</code> / <code>usage_usd</code> / <code>no_cap</code> where the issuer reports them. Every JSON output is tested to contain no 8-character run of any key.</p>
   <h3>How keys are recognised</h3>
   <ul>
@@ -179,13 +199,13 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
 
 <section id="where">
   <div class="strip"><span class="no">05</span><h2>Where it looks</h2></div>
-  <h2 class="big">65 fixed places, then your projects.</h2>
+  <h2 class="big">60-odd fixed places, your projects, then the credential store.</h2>
   <p>Paths shown for Linux; macOS uses <code>~/Library/Application Support</code> and Windows <code>%APPDATA%</code> where the tool does. Run <code>keyroll paths</code> to see which exist on your machine.</p>
   <div class="tablewrap"><table class="ring">
     <thead><tr><th>Tool</th><th>Files</th></tr></thead>
     <tbody>
 <tr><td>Aider</td><td><code>~/.aider.conf.yml</code><br><code>~/.aider.conf.yaml</code></td></tr>
-<tr><td>Claude Code</td><td><code>~/.claude.json</code><br><code>~/.claude/.claude.json</code><br><code>~/.claude/settings.json</code><br><code>~/.claude/settings.local.json</code><br><code>~/.claude/.credentials.json</code><br><code>~/.claude/backups/.claude.json.backup.1760650211</code> <span class="cl">leftover</span><br><code>~/.claude/backups/.claude.json.backup.1760736622</code> <span class="cl">leftover</span></td></tr>
+<tr><td>Claude Code</td><td><code>~/.claude.json</code><br><code>~/.claude/.claude.json</code><br><code>~/.claude/settings.json</code><br><code>~/.claude/settings.local.json</code><br><code>~/.claude/.credentials.json</code></td></tr>
 <tr><td>Claude Desktop</td><td><code>~/.config/Claude/claude_desktop_config.json</code></td></tr>
 <tr><td>Cline</td><td><code>~/.cline/data/secrets.json</code><br><code>~/.cline/data/globalState.json</code></td></tr>
 <tr><td>Code settings</td><td><code>~/.config/Code/User/settings.json</code><br><code>~/.config/Code/User/mcp.json</code></td></tr>
@@ -213,6 +233,21 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
       <tr><td>Any of the above</td><td><code>.bak</code>, <code>~</code>, <code>.orig</code>, <code>.old</code>, <code>.save</code>, <code>.backup*</code> siblings <span class="cl">leftover</span></td></tr>
     </tbody>
   </table></div>
+  <h3 id="stores">Credential stores (names only)</h3>
+  <p>Some tools keep the key in the OS credential store rather than a file. keyroll asks whether an entry with a known name exists and reads its public attributes (service, account, modification date), never the value: <code>security find-generic-password -s NAME</code> and <code>find-internet-password -s URL</code> <b>without</b> <code>-w</code>/<code>-g</code> on macOS, <code>cmdkey /list</code> on Windows (it cannot print passwords), and the Secret Service D-Bus method <code>SearchItems</code> on Linux (item paths only; keyroll never calls <code>GetSecrets</code> or <code>secret-tool lookup</code>/<code>search</code>, which print secrets). Any other command is refused in code and by a test. CI puts fake entries in the real Keychain, Credential Manager and GNOME Keyring and checks they are listed by name and the value never shows up.</p>
+  <div class="tablewrap"><table class="ring stores">
+    <thead><tr><th>Tool</th><th>macOS Keychain</th><th>Windows</th><th>Secret Service</th><th>Holds · replace by hand</th></tr></thead>
+    <tbody>
+      <tr><td>Claude Code</td><td><code>Claude Code</code>, <code>Claude Code-credentials</code>; with <code>CLAUDE_CONFIG_DIR</code> set, both end in <code>-</code> and the first 8 hex of its SHA-256</td><td>file only</td><td>file only</td><td>Anthropic key from a Console login: <code>claude</code>, /logout, /login · claude.ai login (map only)</td></tr>
+      <tr><td>Codex</td><td><code>Codex Auth</code></td><td><code>&lt;account&gt;.Codex Auth</code></td><td><code>service=Codex Auth</code></td><td>OpenAI key or ChatGPT login (<code>cli_auth_credentials_store = "keyring"</code> or <code>"auto"</code>): <code>codex login --with-api-key</code></td></tr>
+      <tr><td>Gemini CLI</td><td><code>gemini-cli-api-key</code>, <code>gemini-cli-oauth</code></td><td><code>gemini-cli-api-key/…</code></td><td><code>service=gemini-cli-api-key</code></td><td>Google AI Studio key: <code>gemini</code>, /auth · Google login (map only)</td></tr>
+      <tr><td>Goose</td><td><code>goose</code></td><td><code>secrets.goose</code></td><td><code>service=goose</code> <code>username=secrets</code></td><td>every provider key you gave Goose, one entry: <code>goose configure</code></td></tr>
+      <tr><td>Zed</td><td>internet password per API URL</td><td><code>zed:url=&lt;api url&gt;</code></td><td><code>url=&lt;api url&gt;</code></td><td>that provider’s key: <code>agent: open settings</code> → Reset Key</td></tr>
+    </tbody>
+  </table></div>
+  <p class="swipe">swipe the table →</p>
+  <p>The entry has no fingerprint, because keyroll never saw the value. The map shows it in its own section; <code>rotate</code> adds the entries of the key’s issuer (and multi-issuer ones like Goose) as by-hand steps that say <em>if it holds this key</em>. On macOS the <em>changed</em> date is the item’s own modification date: after you rotate, it tells you whether you updated it. Over SSH or in a container there is usually no D-Bus session; the map then says the store was not asked.</p>
+
   <h3>The walk</h3>
   <p>From your home (or <code>--root</code>), keyroll reads <code>.env</code>, <code>*.env</code>, <code>.env.local</code>/<code>.env.production</code> and friends, <code>.dev.vars</code>, <code>.envrc</code>, <code>opencode.json</code>, <code>.aider.conf.yml</code>, <code>.mcp.json</code>, <code>.claude/settings.local.json</code>, <code>.cursor/mcp.json</code>, <code>.vscode/mcp.json</code> and <code>.codex/config.toml</code> as <b>live</b>; <code>.env.example</code>/<code>.sample</code>/<code>.template</code>, <code>.env.*</code> backups and editor Local History copies as <b>leftover</b>. It skips dependency folders, caches, VM images and agent transcript folders. A copy inside a git-tracked file is flagged, because rotating it locally does not remove it from history.</p>
 </section>
@@ -251,8 +286,8 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
 codex mcp add keyroll -- keyroll mcp</div>
   <p>Or in any client’s JSON config: <code>{"command": "keyroll", "args": ["mcp"]}</code>. Tools:</p>
   <ul>
-    <li><code>key_map</code>: every key (issuer, hint, fingerprint) with copy counts per class. Optional <code>provider</code>.</li>
-    <li><code>key_copies</code>: every file holding one key (by fingerprint), with class, field, line and the manual command for databases.</li>
+    <li><code>key_map</code>: every key (issuer, hint, fingerprint) with copy counts per class, plus credential-store entries by name. Optional <code>provider</code>.</li>
+    <li><code>key_copies</code>: every file holding one key (by fingerprint), with class, field, line and the manual command for databases, plus the credential-store entries that may also hold it.</li>
   </ul>
   <p>Both are annotated <code>readOnlyHint</code>, run offline and return no key material. There is deliberately no check or rotate tool: an agent should not be the one sending or replacing your keys.</p>
 </section>
@@ -265,7 +300,7 @@ codex mcp add keyroll -- keyroll mcp</div>
     <dt>Why won’t it edit OpenCode’s database?</dt>
     <dd>OpenCode v2 keeps credentials in SQLite and may be running. Writing to a live SQLite file from outside is how you corrupt it. <code>opencode auth login &lt;provider&gt;</code> is one command and does it properly.</dd>
     <dt>Does it read my keychain?</dt>
-    <dd>No. Tools that store keys in the OS keychain (Claude Code on macOS, for example) don’t leave plaintext copies, and keyroll doesn’t ask for keychain access. Re-login those tools after revoking.</dd>
+    <dd>It reads entry <em>names</em>, never values. It asks the Keychain, Credential Manager or Secret Service whether entries that Claude Code, Codex, Gemini CLI, Goose or Zed create exist, and lists them as by-hand steps. It never runs <code>security … -w</code> or <code>-g</code> and never decrypts anything. <code>--no-credstore</code> turns even the name lookup off.</dd>
     <dt>Does it look inside agent chat transcripts?</dt>
     <dd>No. A key pasted into a Claude Code or Codex chat lives in session logs; use <a href="https://github.com/Blackman99/spillscan">spillscan</a> for those.</dd>
     <dt>Is a REJECTED key definitely revoked?</dt>

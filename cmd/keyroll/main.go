@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Blackman99/keyroll/internal/check"
+	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/mcp"
 	"github.com/Blackman99/keyroll/internal/provider"
@@ -57,19 +58,24 @@ type app struct {
 	checker        *check.Client
 	tty            func() (io.ReadWriteCloser, error) // terminal for hidden input / confirmation
 	now            func() time.Time
+	stores         func() credstore.Result // OS credential-store names (nil = do not ask)
 }
 
 func main() {
 	a := &app{stdout: os.Stdout, stderr: os.Stderr, stdin: os.Stdin, env: locate.FromOS(),
 		checker: check.New(version), now: time.Now,
-		tty: func() (io.ReadWriteCloser, error) { return os.OpenFile("/dev/tty", os.O_RDWR, 0) }}
+		tty: func() (io.ReadWriteCloser, error) { return os.OpenFile("/dev/tty", os.O_RDWR, 0) },
+		stores: func() credstore.Result {
+			return credstore.Lookup(context.Background(), credstore.Env{GOOS: runtime.GOOS, Getenv: os.Getenv})
+		}}
 	os.Exit(a.run(os.Args[1:]))
 }
 
 const usage = `keyroll — find every copy of your AI API keys, check which still work, rotate them all at once
 
 usage
-  keyroll [map]              where every key sits: agent configs, app state, shell files, .env, backups, history
+  keyroll [map]              where every key sits: agent configs, app state, shell files, .env, backups, history,
+                             plus credential-store entries AI tools keep keys in (by name only)
   keyroll check [fp…]        ask each issuer: ALIVE (accepted) or REJECTED (revoked / invalid), one free GET per key
   keyroll rotate <fp>        paste the new key once: live copies rewritten, leftovers scrubbed
   keyroll paths              every place keyroll looks, and which exist here
@@ -84,6 +90,7 @@ flags (map, check, rotate)
   --provider ID              only keys of one issuer (anthropic, openai, openrouter, google, …)
   --file PATH                also scan this file (repeatable)
   --timeout 10s              per-request limit for check and for rotate's new-key check
+  --no-credstore             do not ask the OS credential store (Keychain, Credential Manager, Secret Service)
 
 rotate
   --dry-run                  show the plan, change nothing
@@ -94,6 +101,8 @@ rotate
 
 exit codes: 0 ok · 1 action needed (a REJECTED key is still configured / a rotate step failed) · 2 usage · 3 error
 values are never printed, logged or written to JSON: keys show as their issuer prefix + last 4 and an 8-hex fingerprint.
+credential stores are asked for entry names only (security find-generic-password without -w, cmdkey /list,
+Secret Service SearchItems): keyroll never reads those values, so it lists them as by-hand steps.
 `
 
 type multi []string
@@ -103,6 +112,8 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 type opts struct {
 	json, noWalk, dryRun, yes, offline, noBackup bool
+	noCredstore                                  bool
+	cmd                                          string
 	roots, files                                 multi
 	depth                                        int
 	prov                                         string
@@ -110,10 +121,10 @@ type opts struct {
 	args                                         []string
 }
 
-var knownFlags = []string{"json", "root", "depth", "no-walk", "provider", "file", "dry-run", "yes", "offline", "no-backup", "timeout", "help"}
+var knownFlags = []string{"json", "root", "depth", "no-walk", "provider", "file", "dry-run", "yes", "offline", "no-backup", "timeout", "no-credstore", "help"}
 
 func (a *app) parse(cmd string, argv []string) (*opts, int) {
-	o := &opts{}
+	o := &opts{cmd: cmd}
 	fs := flag.NewFlagSet("keyroll "+cmd, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.BoolVar(&o.json, "json", false, "")
@@ -123,6 +134,7 @@ func (a *app) parse(cmd string, argv []string) (*opts, int) {
 	fs.StringVar(&o.prov, "provider", "", "")
 	fs.Var(&o.files, "file", "")
 	fs.DurationVar(&o.timeout, "timeout", 10*time.Second, "")
+	fs.BoolVar(&o.noCredstore, "no-credstore", false, "")
 	if cmd == "rotate" {
 		fs.BoolVar(&o.dryRun, "dry-run", false, "")
 		fs.BoolVar(&o.yes, "yes", false, "")
@@ -228,7 +240,7 @@ func (a *app) run(argv []string) int {
 		return exitOK
 	case "mcp":
 		err := mcp.Run(a.stdin, a.stdout, version, func() (*scan.Report, error) {
-			return scan.Run(scan.Options{Env: a.env})
+			return scan.Run(scan.Options{Env: a.env, Stores: a.stores})
 		})
 		if err != nil {
 			fmt.Fprintln(a.stderr, "keyroll mcp:", err)
@@ -268,7 +280,12 @@ func (a *app) run(argv []string) int {
 }
 
 func (a *app) scan(o *opts) (*scan.Report, error) {
-	return scan.Run(scan.Options{Env: a.env, Roots: o.roots, Depth: o.depth, NoWalk: o.noWalk, Provider: o.prov, Extra: o.files})
+	so := scan.Options{Env: a.env, Roots: o.roots, Depth: o.depth, NoWalk: o.noWalk, Provider: o.prov, Extra: o.files}
+	// check has nothing to ask about a value keyroll never read: only map and rotate list store entries
+	if o.cmd != "check" && !o.noCredstore {
+		so.Stores = a.stores
+	}
+	return scan.Run(so)
 }
 
 func spillscanOnPath() bool { _, err := exec.LookPath("spillscan"); return err == nil }
@@ -394,6 +411,7 @@ func (a *app) rotateCmd(o *opts) int {
 		fmt.Fprintf(a.stderr, "keyroll rotate: %s %s: %v\n", k.ProviderNam, k.Hint, err)
 		return exitUsage
 	}
+	pl.Stores = r.CredentialStore.For(k.Provider)
 	st := render.NewStyle(a.stdout)
 	if o.dryRun {
 		if o.json {
@@ -401,7 +419,7 @@ func (a *app) rotateCmd(o *opts) int {
 		}
 		render.Plan(a.stdout, st, pl, "key (not asked for in a dry run)", "")
 		w, s, m := pl.Counts()
-		fmt.Fprintf(a.stdout, "  dry run: would rewrite %d, scrub %d, leave %d for you. nothing changed.\n", w, s, m)
+		fmt.Fprintf(a.stdout, "  dry run: would rewrite %d, scrub %d, leave %d for you%s. nothing changed.\n", w, s, m, storeNote(pl))
 		return exitOK
 	}
 	newKey, err := a.readNewKey(k)
@@ -433,11 +451,11 @@ func (a *app) rotateCmd(o *opts) int {
 	}
 	w, s, m := pl.Counts()
 	if w+s == 0 {
-		fmt.Fprintf(a.stdout, "  nothing keyroll can edit: %d place(s) need the steps above.\n", m)
+		fmt.Fprintf(a.stdout, "  nothing keyroll can edit: %d place(s)%s need the steps above.\n", m, storeNote(pl))
 		return exitOK
 	}
 	if !o.yes {
-		ok, err := a.confirm(fmt.Sprintf("  rewrite %d, scrub %d%s? [y/N] ", w, s, map[bool]string{true: fmt.Sprintf(", %d by hand", m), false: ""}[m > 0]))
+		ok, err := a.confirm(fmt.Sprintf("  rewrite %d, scrub %d%s%s? [y/N] ", w, s, map[bool]string{true: fmt.Sprintf(", %d by hand", m), false: ""}[m > 0], storeNote(pl)))
 		if err != nil {
 			fmt.Fprintln(a.stderr, "keyroll rotate:", err)
 			return exitUsage
@@ -493,6 +511,18 @@ func (a *app) rotateCmd(o *opts) int {
 		}
 	}
 	return exitOK
+}
+
+// storeNote counts the credential-store entries a plan asks the user to check.
+func storeNote(pl rotate.Plan) string {
+	switch n := len(pl.Stores); n {
+	case 0:
+		return ""
+	case 1:
+		return " + 1 credential-store entry to check"
+	default:
+		return fmt.Sprintf(" + %d credential-store entries to check", n)
+	}
 }
 
 func isTerminal(r io.Reader) bool {
@@ -625,5 +655,11 @@ func (a *app) paths(argv []string) int {
 		fmt.Fprintf(a.stdout, "  %s %-17s %-9s %s\n", mark, r.Tool, render.ClassLabel(r.Class), p)
 	}
 	fmt.Fprintf(a.stdout, "\n  %d of %d fixed locations exist here (● = exists). keyroll also walks your home for .env, .dev.vars, .envrc,\n  opencode.json, .aider.conf.yml, .mcp.json, .claude/settings.local.json and editor Local History copies.\n  session transcripts are left to spillscan.\n", n, len(rows))
+	if store, names := credstore.Queries(credstore.Env{GOOS: a.env.GOOS, Getenv: a.env.Getenv}); store != "" {
+		fmt.Fprintf(a.stdout, "\n  %s: keyroll asks whether these entries exist, by name only (it never reads a value):\n", store)
+		for _, nm := range names {
+			fmt.Fprintf(a.stdout, "    %s\n", nm)
+		}
+	}
 	return exitOK
 }

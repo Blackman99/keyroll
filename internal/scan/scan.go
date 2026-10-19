@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/provider"
 )
@@ -74,6 +75,9 @@ type Report struct {
 	Elapsed      time.Duration `json:"-"`
 	ElapsedMS    int64         `json:"elapsed_ms"`
 	Home         string        `json:"-"`
+	// CredentialStore lists OS credential-store entries known AI tools keep
+	// keys in, by name only (nil when not asked, e.g. --no-credstore).
+	CredentialStore *credstore.Result `json:"credential_store,omitempty"`
 }
 
 // Copies is the total number of copies.
@@ -105,6 +109,9 @@ type Options struct {
 	Extra    []string // extra files to scan (as live copies)
 	NoWalk   bool
 	Provider string // only keep keys of this provider id
+	// Stores, when set, asks the OS credential store which known entries
+	// exist (names only, never values).
+	Stores func() credstore.Result
 }
 
 // Run scans the machine.
@@ -207,6 +214,10 @@ func Run(o Options) (*Report, error) {
 		}
 		return a.Fingerprint < b.Fingerprint
 	})
+	if o.Stores != nil {
+		cs := o.Stores().Filter(o.Provider)
+		r.CredentialStore = &cs
+	}
 	r.Elapsed = time.Since(t0)
 	r.ElapsedMS = r.Elapsed.Milliseconds()
 	return r, nil

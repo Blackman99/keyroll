@@ -77,8 +77,33 @@ Keys are shown as issuer, public prefix and last four characters (the same hint 
 | **live** | a tool reads this file: settings, `auth.json`, `.env`, rc files | writes the new key, byte for byte in place |
 | **leftover** | nothing reads it, but it still unlocks your account: Claude Code backups, OpenCode's pre-v2 `auth.json`, shell history, `.env.example`, `*.bak`, editor Local History | **scrubs** the old key (`[revoked-by-keyroll:<fp>]`) and does *not* add the new one, so rotation shrinks the number of copies |
 | **database** | OpenCode v2's `opencode.db` (and `-wal`) | never edited; prints the exact command (`opencode auth login anthropic`) |
+| **credential store** (by hand) | an entry an AI tool keeps in the macOS Keychain, Windows Credential Manager or the Secret Service (GNOME Keyring / KWallet), [found by name only](#credential-stores-names-only-never-values) | never read, never edited; listed in the plan of every key of that issuer with the exact step that replaces it |
 
 Files tracked by git are flagged: the old key stays in history, so revoke it. Symlinked dotfiles are shown with their target and written through.
+
+#### Credential stores: names only, never values
+
+Some tools keep the key in the OS credential store instead of a file. keyroll asks the store whether an entry with a known name exists and reads only its public attributes (service, account, modification date). It never asks for the value: on macOS it runs `security find-generic-password -s NAME` / `find-internet-password -s URL` **without** `-w` or `-g`; on Windows `cmdkey /list`, which cannot print passwords; on Linux the Secret Service D-Bus method `SearchItems`, which returns item paths (it never calls `GetSecrets` and never uses `secret-tool lookup`/`search`, which print secrets). A guard in the code refuses any other command, and a test fails if one is ever attempted.
+
+Because the value is never read, such an entry has no fingerprint and keyroll cannot tell which key it holds. So it is shown in its own section, and `rotate` lists it under every key of that issuer as a by-hand step:
+
+```text
+  ◇ credential store  macOS Keychain   1 entry  by name only: keyroll never reads these values
+      by hand   Claude Code      "Claude Code"  Anthropic API key · changed 2026-10-03
+                                 → run `claude`, /logout, then /login with your Console account
+```
+
+(simulated macOS Keychain entry; the "changed" date is the item's own modification date, so after a rotation you can see whether you updated it)
+
+| tool | macOS Keychain | Windows Credential Manager | Secret Service | holds | source |
+|---|---|---|---|---|---|
+| Claude Code | `Claude Code` (Console API key), `Claude Code-credentials` (claude.ai login); `-<sha256(CLAUDE_CONFIG_DIR)[:8]>` appended when that is set | (file only) | (file only) | Anthropic key / login | `src/utils/secureStorage/macOsKeychainHelpers.ts`, [docs](https://code.claude.com/docs/en/authentication) |
+| Codex | `Codex Auth` | `<account>.Codex Auth` | `service=Codex Auth` | OpenAI key or ChatGPT login (with `cli_auth_credentials_store = "keyring"` / `"auto"`) | [`codex-rs/login/src/auth/storage.rs`](https://github.com/openai/codex/blob/main/codex-rs/login/src/auth/storage.rs) |
+| Gemini CLI | `gemini-cli-api-key`, `gemini-cli-oauth` | `gemini-cli-api-key/…`, `gemini-cli-oauth/…` | `service=gemini-cli-api-key` / `-oauth` | Google AI Studio key / Google login | `packages/core/src/core/apiKeyCredentialStorage.ts` |
+| Goose | `goose` (account `secrets`) | `secrets.goose` | `service=goose username=secrets` | every provider key you gave Goose, in one entry | [`crates/goose/src/config/base.rs`](https://github.com/block/goose/blob/main/crates/goose/src/config/base.rs) |
+| Zed | internet password for each provider's API URL (`https://api.anthropic.com`, `https://api.openai.com/v1`, …) | `zed:url=<api url>` | `url=<api url>` | that provider's key | `crates/language_model/src/api_key.rs` |
+
+Login entries are listed in the map but never added to a rotation plan. `--no-credstore` skips the store; `check` never asks it (there is no value to check). Without a D-Bus session (SSH, containers) or without `gdbus`, the map says the store was not asked and why.
 
 ### `keyroll check [fp…]`
 
@@ -124,13 +149,13 @@ pbpaste | keyroll rotate 38bb1575 --yes
 ### `keyroll paths`, `keyroll mcp`
 
 - `keyroll paths` lists every fixed location keyroll reads and which exist on this machine.
-- `keyroll mcp` is a read-only stdio MCP server with two tools, `key_map` and `key_copies`. They return fingerprints and file paths, never key material, and there is no tool that writes. Rotation stays a human step.
+- `keyroll mcp` is a read-only stdio MCP server with two tools, `key_map` and `key_copies`. They return fingerprints, file paths and credential-store entry names, never key material, and there is no tool that writes. Rotation stays a human step.
 
 ```sh
 claude mcp add keyroll -- keyroll mcp
 ```
 
-Flags: `--json`, `--provider anthropic`, `--root DIR` (walk more folders, repeatable), `--depth N`, `--no-walk`, `--file PATH`, `--timeout 10s`. Exit codes: `0` ok · `1` action needed · `2` usage · `3` error.
+Flags: `--json`, `--provider anthropic`, `--root DIR` (walk more folders, repeatable), `--depth N`, `--no-walk`, `--file PATH`, `--timeout 10s`, `--no-credstore`. Exit codes: `0` ok · `1` action needed · `2` usage · `3` error.
 
 ## What it covers
 
@@ -141,12 +166,13 @@ Flags: `--json`, `--provider anthropic`, `--root DIR` (walk more folders, repeat
 | OpenCode | `~/.config/opencode/opencode.json(c)`, legacy `~/.local/share/opencode/auth.json` (leftover once `opencode.db` exists), **`opencode.db` + `-wal`** (database: by hand) |
 | Cline, Continue, Cursor, Windsurf, Zed, VS Code / VSCodium | secrets and settings files, `mcp.json` |
 | Gemini CLI, Aider, Goose, Crush, Pi, aichat, `llm`, Claude Desktop | their config / key files |
+| Credential stores | entries Claude Code, Codex, Gemini CLI, Goose and Zed keep in the macOS Keychain, Windows Credential Manager or Secret Service, **by name only** ([table](#credential-stores-names-only-never-values)) |
 | Shell | `.zshrc`, `.zshenv`, `.zprofile`, `.bashrc`, `.bash_profile`, `.profile`, `.envrc`, `~/.env`, `~/.secrets`, `.netrc`, fish config and universal variables, PowerShell profiles |
 | History (leftovers) | zsh, bash, fish, PowerShell, Python and Node REPL history |
 | Projects | a walk of your home (or `--root`) for `.env*`, `.dev.vars`, `.envrc`, `opencode.json`, `.aider.conf.yml`, `.mcp.json`, `.claude/settings.local.json`, editor Local History copies; `*.bak` / `~` / `.orig` copies as leftovers |
 | Issuers | Anthropic, OpenAI, OpenRouter, Google AI Studio, xAI, DeepSeek, Groq, Mistral, Together, Cerebras, Fireworks, Moonshot, Z.ai, Hugging Face (checked); Perplexity (mapped only, no free endpoint) |
 
-**Not covered:** agent chat transcripts ([spillscan](https://github.com/Blackman99/spillscan)), git history ([gitleaks](https://github.com/gitleaks/gitleaks) / [trufflehog](https://github.com/trufflesecurity/trufflehog)), OS keychains, and secrets stored in CI providers (they are not on your disk; a `gh secret list` inventory is on the [roadmap](ROADMAP.md)). [heldkeys](https://github.com/hugomn/heldkeys) answers a related question, "which keys can my agent reach right now".
+**Not covered:** agent chat transcripts ([spillscan](https://github.com/Blackman99/spillscan)), git history ([gitleaks](https://github.com/gitleaks/gitleaks) / [trufflehog](https://github.com/trufflesecurity/trufflehog)), the values inside OS credential stores (entries are listed by name; keyroll never reads or decrypts them), and secrets stored in CI providers (they are not on your disk; a `gh secret list` inventory is on the [roadmap](ROADMAP.md)). [heldkeys](https://github.com/hugomn/heldkeys) answers a related question, "which keys can my agent reach right now".
 
 ## Install
 
@@ -165,7 +191,10 @@ Or download a binary for macOS, Linux or Windows (amd64 / arm64) from [Releases]
 ```sh
 go test ./...                 # unit + end-to-end tests on a fake home
 ./scripts/integration.sh      # real Codex and llm CLIs write keys, keyroll rotates them, the tools read the new key back
+dbus-run-session -- ./scripts/credstore-smoke.sh   # a real credential store gets fake entries; keyroll lists them by name, never the value
 ```
+
+CI runs the credential-store smoke test against the real macOS Keychain, Windows Credential Manager and GNOME Keyring.
 
 See [GOAL.md](GOAL.md), [ROADMAP.md](ROADMAP.md) and [CONTRIBUTING.md](CONTRIBUTING.md). Security problems: please use GitHub's private vulnerability reporting.
 

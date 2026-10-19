@@ -10,17 +10,22 @@
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
   const KEYS = [
-    { id: "A", name: "Anthropic", hint: "sk-ant-…M1AA", fp: "38bb1575", cord: "--cord-a", alive: false, detail: "refused, HTTP 401" },
-    { id: "R", name: "OpenRouter", hint: "sk-or-v1-…7bdc", fp: "8e460503", cord: "--cord-r", alive: true, detail: "alive · no spend limit, used $412.20" },
-    { id: "O", name: "OpenAI", hint: "sk-proj-…5Gt_", fp: "268a465f", cord: "--cord-o", alive: true, detail: "alive · accepted (200)" },
-    { id: "D", name: "DeepSeek", hint: "sk-…81e4", fp: "93530c02", cord: "--cord-v", alive: true, detail: "alive" },
-    { id: "G", name: "Google AI Studio", short: "Google", hint: "AIza…qz8j", fp: "ab770573", cord: "--cord-g", alive: true, detail: "alive · accepted (200)" },
+    { id: "A", pid: "anthropic", name: "Anthropic", hint: "sk-ant-…M1AA", fp: "38bb1575", cord: "--cord-a", alive: false, detail: "refused, HTTP 401" },
+    { id: "R", pid: "openrouter", name: "OpenRouter", hint: "sk-or-v1-…7bdc", fp: "8e460503", cord: "--cord-r", alive: true, detail: "alive · no spend limit, used $412.20" },
+    { id: "O", pid: "openai", name: "OpenAI", hint: "sk-proj-…5Gt_", fp: "268a465f", cord: "--cord-o", alive: true, detail: "alive · accepted (200)" },
+    { id: "D", pid: "deepseek", name: "DeepSeek", hint: "sk-…81e4", fp: "93530c02", cord: "--cord-v", alive: true, detail: "alive" },
+    { id: "G", pid: "google", name: "Google AI Studio", short: "Google", hint: "AIza…qz8j", fp: "ab770573", cord: "--cord-g", alive: true, detail: "alive · accepted (200)" },
   ];
   const NEW = { id: "N", name: "new Anthropic key", short: "NEW", hint: "sk-ant-…kwAA", cord: "--cord-new" };
-  const L = "live", X = "leftover", DB = "database";
-  // Same 19 copies the demo home in the repo produces (internal/testhome).
+  const L = "live", X = "leftover", DB = "database", KC = "credential store";
+  // Same 19 copies the demo home in the repo produces (internal/testhome), plus
+  // one simulated macOS Keychain entry: keyroll sees its name, never its value,
+  // so it is not a copy and never gets a cord.
   const STRIPS = [
     { t: "CLAUDE CODE", j: [
+      // the store entry sits on top: cords come up from below, so none runs across it
+      { f: "Keychain", k: "A", c: KC, store: "macOS Keychain", p: 'macOS Keychain · "Claude Code"', tool: "Claude Code", holds: "Anthropic API key · changed 2026-10-03",
+        man: "run `claude`, /logout, then /login with your Console account", ticket: "claude → /logout, then /login" },
       { f: ".claude.json", k: "A", c: L, p: "~/.claude.json:4", fld: "primaryApiKey", tool: "Claude Code" } ] },
     { t: "CODEX · LLM", j: [
       { f: ".codex/auth.json", s: "codex auth", k: "O", c: L, p: "~/.codex/auth.json:3", fld: "OPENAI_API_KEY", tool: "Codex" },
@@ -51,6 +56,8 @@
   const keyOf = id => id === "N" ? NEW : KEYS.find(k => k.id === id);
   const jacks = [];
   STRIPS.forEach((s, si) => s.j.forEach((j, ji) => jacks.push(Object.assign(j, { si, ji }))));
+  const files = jacks.filter(j => !j.store); // what keyroll counts as copies
+  const stores = jacks.filter(j => j.store);
 
   // CLI output, verbatim from keyroll on the demo home (check: simulated answers).
   const LOG = {
@@ -81,22 +88,28 @@
 <span class="k-dim">paste the new Anthropic key (input hidden), then Enter:</span>
 <span class="k-b">keyroll rotate</span>  Anthropic sk-ant-…M1AA <span class="k-c">#38bb1575</span>  →  new sk-ant-…kwAA <span class="k-g">(works ✓)</span>
 
-  <span class="k-b">write</span>    Claude Code     ~/.claude.json:4                                    primaryApiKey
-  <span class="k-b">write</span>    shell           ~/.zshrc:6                                          ANTHROPIC_API_KEY
-  <span class="k-b">write</span>    project .env    ~/code/shop/.env:2                                  ANTHROPIC_API_KEY
-  <span class="k-y">by hand</span>  OpenCode        ~/.local/share/opencode/opencode.db                 opencode auth login anthropic
-  <span class="k-dim">scrub</span>    OpenCode        ~/.local/share/opencode/auth.json:4                 <span class="k-dim">old key removed, new not added</span>
-  <span class="k-dim">scrub</span>    shell history   ~/.zsh_history:2                                    <span class="k-dim">old key removed, new not added</span>
-  <span class="k-dim">scrub</span>    Claude Code     ~/.claude/backups/.claude.json.backup.1760650211:4  <span class="k-dim">old key removed, new not added</span>
-  <span class="k-dim">scrub</span>    Claude Code     ~/.claude/backups/.claude.json.backup.1760736622:4  <span class="k-dim">old key removed, new not added</span>
-  <span class="k-dim">scrub</span>    project .env    ~/code/shop/.env.example:2                          <span class="k-dim">old key removed, new not added</span>
+  <span class="k-g">write</span>    Claude Code     ~/.claude.json:4                                    <span class="k-dim">primaryApiKey</span>
+  <span class="k-g">write</span>    shell           ~/.zshrc:6                                          <span class="k-dim">ANTHROPIC_API_KEY</span>
+  <span class="k-g">write</span>    project .env    ~/code/shop/.env:2                                  <span class="k-dim">ANTHROPIC_API_KEY</span>
+  <span class="k-bl">by hand</span>  OpenCode        ~/.local/share/opencode/opencode.db                 <span class="k-dim">opencode auth login anthropic</span>
+  <span class="k-y">scrub</span>    OpenCode        ~/.local/share/opencode/auth.json:4                 <span class="k-dim">old key removed, new not added</span>
+  <span class="k-y">scrub</span>    shell history   ~/.zsh_history:2                                    <span class="k-dim">old key removed, new not added</span>
+  <span class="k-y">scrub</span>    Claude Code     ~/.claude/backups/.claude.json.backup.1760650211:4  <span class="k-dim">old key removed, new not added</span>
+  <span class="k-y">scrub</span>    Claude Code     ~/.claude/backups/.claude.json.backup.1760736622:4  <span class="k-dim">old key removed, new not added</span>
+  <span class="k-y">scrub</span>    project .env    ~/code/shop/.env.example:2                          <span class="k-dim">old key removed, new not added</span>
+
+  <span class="k-bl">credential store</span> (macOS Keychain) may hold this key<span class="k-dim">: names only, keyroll cannot see the values</span>
+  <span class="k-bl">by hand</span>  Claude Code     "Claude Code"  <span class="k-dim">Anthropic API key</span>
+                           <span class="k-bl">→ run \`claude\`, /logout, then /login with your Console account</span>
 
   <span class="k-g">✓</span> 8 files changed · originals (with the OLD key) in ~/.keyroll/backups/20261018-101320-38bb1575
 
   <span class="k-b">now</span>
   1. OpenCode: opencode auth login anthropic (then: opencode auth list)
-  2. give the new key a spend limit: https://console.anthropic.com/settings/limits
-  3. restart tools that keep the key in memory (a running Claude Code, Codex or OpenCode session, an
+  2. Claude Code in the macOS Keychain ("Claude Code"), if it holds this key: run \`claude\`, /logout,
+     then /login with your Console account
+  3. give the new key a spend limit: https://console.anthropic.com/settings/limits
+  4. restart tools that keep the key in memory (a running Claude Code, Codex or OpenCode session, an
      open shell: \`exec $SHELL\`)
 <span class="k-dim">     once it is revoked, delete the backups: rm -rf ~/.keyroll/backups/20261018-101320-38bb1575</span>
 
@@ -107,7 +120,7 @@
   };
   const pad = (s, n) => s + " ".repeat(Math.max(1, n - s.length));
   function mapLog(k) {
-    const mine = jacks.filter(j => j.k === k.id);
+    const mine = files.filter(j => j.k === k.id);
     const n = c => mine.filter(j => j.c === c).length;
     const parts = [];
     if (n(L)) parts.push(`${n(L)} live`);
@@ -117,18 +130,27 @@
     const rows = mine.slice().sort((a, b) => order.indexOf(a.c) - order.indexOf(b.c));
     const w = Math.max(...rows.map(j => j.p.length)) + 2;
     const lines = rows.map(j => {
-      const cls = j.c === L ? "k-b" : j.c === DB ? "k-y" : "k-dim";
+      const cls = j.c === L ? "k-b" : j.c === DB ? "k-bl" : "k-dim";
       let line = `      <span class="${cls}">${pad(j.c, 10)}</span>${pad(j.tool, 17)}${j.fld ? pad(j.p, w) + `<span class="k-dim">${j.fld}</span>` : j.p}`;
-      if (j.man) line += `\n${" ".repeat(33)}<span class="k-y">→ ${j.man}</span>  <span class="k-dim">(then: opencode auth list)</span>`;
+      if (j.man) line += `\n${" ".repeat(33)}<span class="k-bl">→ ${j.man}</span>  <span class="k-dim">(then: opencode auth list)</span>`;
       if (j.why) line += `\n${" ".repeat(33)}<span class="k-dim">${j.why}</span>`;
       return line;
     });
     const live = n(L) + n(DB);
-    return `<span class="k-dim">$</span> keyroll
-<span class="k-b">keyroll</span>  5 keys · 19 copies · 9 tools <span class="k-dim">· offline, nothing sent</span>
+    const tools = new Set(mine.map(j => j.tool)).size;
+    const st = stores.filter(j => j.k === k.id);
+    const store = st.length ? `
+
+  <span class="k-bl">◇</span> <span class="k-b">credential store</span>  ${pad(st[0].store, 15)}  ${st.length} ${st.length === 1 ? "entry" : "entries"}  <span class="k-dim">by name only: keyroll never reads these values</span>
+${st.map(j => `      <span class="k-bl">by hand</span>   ${pad(j.tool, 17)}"${j.p.split('"')[1]}"  <span class="k-dim">${j.holds}</span>
+${" ".repeat(33)}<span class="k-bl">→ ${j.man}</span>`).join("\n")}` : "";
+    return `<span class="k-dim">$</span> keyroll --provider ${k.pid}
+<span class="k-b">keyroll</span>  1 key · ${mine.length} ${mine.length > 1 ? "copies" : "copy"} · ${tools} ${tools > 1 ? "tools" : "tool"} <span class="k-dim">· offline, nothing sent</span>
 
   ${live ? "●" : "○"} ${pad(k.name, 18)}${pad(k.hint, 17)}<span class="k-c">#${k.fp}</span>  ${pad(mine.length + (mine.length > 1 ? " copies" : " copy"), 10)}<span class="k-dim">${parts.join(" · ")}</span>
-${lines.join("\n")}`;
+${lines.join("\n")}${store}
+
+<span class="k-dim">  asked the macOS Keychain whether 13 known entries exist (names only, never values)</span>`;
   }
 
   // ── geometry ────────────────────────────────────────────────────────
@@ -216,22 +238,30 @@ ${lines.join("\n")}`;
   }
 
   function drawJack(parent, j) {
-    const g = el("g", { class: "jack", tabindex: 0, role: "button", "aria-label": `${j.p} (${j.c})` }, parent);
+    const g = el("g", { class: "jack" + (j.store ? " store" : ""), tabindex: 0, role: "button", "aria-label": j.store ? `${j.p}: credential-store entry, name only` : `${j.p} (${j.c})` }, parent);
     el("rect", { x: j.x - 34, y: j.y - 12, width: 68, height: G.rowH - 4, fill: "transparent" }, g);
     j.chip = el("rect", { x: j.x - 30, y: j.y - (G.narrow ? 10 : 11), width: 60, height: G.narrow ? 13 : 14, rx: 2, fill: css("--bakelite") }, g);
     const lab = el("text", { x: j.x, y: j.y, "text-anchor": "middle", fill: css("--strip"), "font-family": "Chivo Mono, monospace", "font-size": G.narrow ? 9 : 10 }, g);
     lab.textContent = G.narrow && j.s ? j.s : j.f;
     j.label = lab;
     // which trunk owns this jack: a short cord-colour tick under the label
-    j.tick = el("rect", { x: j.x - 9, y: j.y + 5, width: 18, height: 3, rx: 1.5, fill: css(keyOf(j.k).cord), opacity: .9 }, g);
+    // credential-store entry: a dashed tick, it is only probably this trunk's
+    j.tick = j.store
+      ? el("path", { d: `M${j.x - 9},${j.y + 6.5} h18`, stroke: css(keyOf(j.k).cord), "stroke-width": 3, "stroke-dasharray": "4 3", opacity: .9 }, g)
+      : el("rect", { x: j.x - 9, y: j.y + 5, width: 18, height: 3, rx: 1.5, fill: css(keyOf(j.k).cord), opacity: .9 }, g);
     j.jy = j.y + 40;
     j.lamp = el("circle", { class: "lamp", cx: j.x, cy: j.y + 19, r: 6.5, fill: "#2a2822", stroke: "#5c625f", "stroke-width": 1.5 }, g);
+    if (j.store) j.halo = el("circle", { class: "halo", cx: j.x, cy: j.jy, r: 14.5, fill: "none", stroke: css("--ring"), "stroke-width": 2, "stroke-dasharray": "3 3.6", opacity: 0 }, g);
     el("circle", { class: "ringo", cx: j.x, cy: j.jy, r: 10, fill: css("--nickel") }, g);
-    el("circle", { cx: j.x, cy: j.jy, r: 4.6, fill: "#050504" }, g);
+    if (j.store) {
+      // blanked off: a bakelite diamond cover over the hole. No plug fits; it is a by-hand step.
+      el("rect", { x: j.x - 5, y: j.jy - 5, width: 10, height: 10, rx: 1.2, fill: css("--bakelite"), transform: `rotate(45 ${j.x} ${j.jy})` }, g);
+      el("rect", { x: j.x - 2, y: j.jy - 2, width: 4, height: 4, fill: css("--nickel"), transform: `rotate(45 ${j.x} ${j.jy})` }, g);
+    } else el("circle", { cx: j.x, cy: j.jy, r: 4.6, fill: "#050504" }, g);
     const show = () => showTip(j);
     g.addEventListener("mouseenter", show); g.addEventListener("focus", show);
     g.addEventListener("mouseleave", hideTip); g.addEventListener("blur", hideTip);
-    g.addEventListener("click", () => { if (state.phase !== "busy") selectKey(j.k === "N" ? "A" : j.k, true); show(); });
+    g.addEventListener("click", () => { pick(j.k === "N" ? "A" : j.k); show(); });
     g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); g.dispatchEvent(new Event("click")); } });
   }
 
@@ -250,7 +280,7 @@ ${lines.join("\n")}`;
     hint.textContent = k.hint;
     k.status = el("text", { x: k.x, y: k.y + (G.narrow ? 55 : 54), "text-anchor": "middle", fill: css("--bakelite"), "font-family": "Libre Franklin, sans-serif", "font-weight": 700, "font-size": G.narrow ? 7.5 : 9.5, "letter-spacing": 1 }, g);
     if (k === NEW) { g.style.opacity = 0; return; }
-    g.addEventListener("click", () => { if (state.phase !== "busy") { stopAuto(); selectKey(k.id, true); } });
+    g.addEventListener("click", () => pick(k.id));
     g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); g.dispatchEvent(new Event("click")); } });
   }
 
@@ -303,7 +333,7 @@ ${lines.join("\n")}`;
   function snap(c) { c.head.setAttribute("transform", `translate(${c.j.x},${c.j.jy + 12})`); c.head.lastChild.setAttribute("opacity", 0); }
   const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   function animate(c, from, to, ms) {
-    if (reduce || ms === 0) { setT(c, to); return Promise.resolve(); }
+    if (reduce || fast || ms === 0) { setT(c, to); return Promise.resolve(); }
     return new Promise(res => {
       const t0 = performance.now();
       const step = now => {
@@ -324,7 +354,8 @@ ${lines.join("\n")}`;
     jacks.forEach(j => { if (j.cord) { j.cord.g.remove(); j.cord.head.remove(); j.cord = null; } });
     layers.tags.textContent = "";
   }
-  const wait = ms => new Promise(r => setTimeout(r, reduce ? Math.min(ms, 60) : ms));
+  let fast = false; // redrawing a saved state after a resize: no animation
+  const wait = ms => new Promise(r => setTimeout(r, fast ? 0 : reduce ? Math.min(ms, 60) : ms));
 
   // ── lamps, tags ─────────────────────────────────────────────────────
   const LAMP = { off: "#2a2822" };
@@ -352,7 +383,7 @@ ${lines.join("\n")}`;
     const g = el("g", { class: "ticket", transform: `translate(${x},${y}) rotate(-1.5)` }, layers.tags);
     el("rect", { width: w, height: G.narrow ? 30 : 36, rx: 2, fill: css("--strip"), stroke: css("--ring"), "stroke-width": 2 }, g);
     const a = el("text", { x: 7, y: G.narrow ? 11 : 14, "font-size": G.narrow ? 7 : 9, "font-weight": 600, fill: css("--bakelite") }, g);
-    a.textContent = G.narrow ? `BY HAND · ${keyOf(j.k).name}` : `BY HAND · ${j.f} · ${keyOf(j.k).name}`;
+    a.textContent = G.narrow ? `BY HAND · ${j.store ? "KEYCHAIN" : keyOf(j.k).name}` : j.store ? `BY HAND · Keychain "${j.p.split('"')[1]}"` : `BY HAND · ${j.f} · ${keyOf(j.k).name}`;
     const b = el("text", { x: 7, y: G.narrow ? 23 : 28, "font-size": G.narrow ? 7 : 9.5, fill: css("--bakelite") }, g);
     b.textContent = text;
     if (!reduce) g.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
@@ -361,10 +392,14 @@ ${lines.join("\n")}`;
   // ── tooltip ─────────────────────────────────────────────────────────
   function showTip(j) {
     const k = keyOf(j.k);
+    if (j.store) return placeTip(j, `<b>${j.tool} · credential store</b><code>${j.p}</code><br>An entry by this name exists. keyroll asked for its name only and never reads the value, so it cannot tell whether it holds ${k.name} <span class="nw">${k.hint}</span>.<br>→ ${state.rotated ? "left for you: " : "rotate lists it as a by-hand step: "}${j.man.replace(/`/g, "")}`);
     const action = state.rotated && j.k === "A"
       ? (j.c === L ? "rewritten with the new key" : j.c === X ? "old key scrubbed, new key not added" : "left for you: " + j.man)
       : j.c === L ? "rotate rewrites this one" : j.c === X ? "rotate scrubs it and does not add the new key" : "rotate never edits a database: " + j.man;
-    tip.innerHTML = `<b>${j.tool} · ${j.c}</b><code>${j.p}</code>${j.fld ? ` <span class="mono">${j.fld}</span>` : ""}<br>${k.name} ${k.hint}${j.why ? `<br><em>${j.why}</em>` : ""}<br>→ ${action}`;
+    placeTip(j, `<b>${j.tool} · ${j.c}</b><code>${j.p}</code>${j.fld ? ` <span class="mono">${j.fld}</span>` : ""}<br>${k.name} ${k.hint}${j.why ? `<br><em>${j.why}</em>` : ""}<br>→ ${action}`);
+  }
+  function placeTip(j, html) {
+    tip.innerHTML = html;
     const r = stage.getBoundingClientRect(), s = r.width / G.W;
     let left = j.x * s + 18, top = (j.y + 60) * s;
     tip.classList.add("show");
@@ -393,14 +428,32 @@ ${lines.join("\n")}`;
     const busy = state.phase === "busy";
     state.phase = "busy"; lockLevers(true);
     // pull the previous key's cords
+    stores.forEach(j => { if (!state.rotated) j.halo.classList.remove("on"); });
     await Promise.all(jacks.filter(j => j.cord && j.cord.k.id !== "N").map(j => { lamp(j.lamp, "off"); return pull(j, 360); }));
     KEYS.forEach(o => o.g.style.opacity = o.id === id || o.revoked ? (o.revoked ? .45 : 1) : .78);
-    const mine = jacks.filter(j => j.k === id && !(state.rotated && id === "A"));
+    const mine = files.filter(j => j.k === id && !(state.rotated && id === "A"));
     setLog(mapLog(k));
     setMeter(`1 KEY · ${mine.length} ${mine.length === 1 ? "COPY" : "COPIES"}`);
     await Promise.all(mine.map((j, i) => wait(i * 110).then(() => cord(k, j, 640)).then(() => lamp(j.lamp, j.c === X ? "--hammer-hi" : "--ring"))));
+    // asked by name only: no cord, just a dashed ring that says "an entry called this exists"
+    stores.filter(j => j.k === id).forEach(j => j.halo.classList.add("on"));
     state.phase = busy ? "busy" : "idle"; lockLevers(false);
     levers.rotate.disabled = state.rotated || !state.checked;
+    if (!busy) settle();
+  }
+  // a plug or jack picked while the board was busy: patch it in as soon as it is free
+  function pick(id) {
+    stopAuto();
+    if (state.phase === "busy") { state.queued = id; return; }
+    selectKey(id, true);
+  }
+  function settle() {
+    // deferred: if a check or rotate is about to continue, it runs first and settles later
+    setTimeout(() => {
+      if (!state || state.phase !== "idle" || !state.queued) return;
+      const q = state.queued; state.queued = null;
+      selectKey(q, true);
+    }, 0);
   }
 
   async function doCheck() {
@@ -416,9 +469,10 @@ ${lines.join("\n")}`;
     });
     state.checked = true;
     // the dead key's live copies: these tools fail on their next request
-    if (state.sel === "A" && !state.rotated) jacks.filter(j => j.k === "A" && j.c !== X).forEach(j => lamp(j.lamp, "--dead", "blink"));
+    if (state.sel === "A" && !state.rotated) files.filter(j => j.k === "A" && j.c !== X).forEach(j => lamp(j.lamp, "--dead", "blink"));
     setMeter(state.rotated ? "OLD KEY · 1 PLACE" : "REJECTED · 4 TOOLS");
     state.phase = "idle"; lockLevers(false); levers.rotate.disabled = state.rotated;
+    settle();
   }
 
   async function doRotate() {
@@ -431,7 +485,7 @@ ${lines.join("\n")}`;
     if (!reduce) NEW.g.animate([{ transform: "translateY(18px)", opacity: 0 }, { transform: "none", opacity: 1 }], { duration: 380, easing: "cubic-bezier(.3,1.4,.5,1)" });
     lamp(NEW.trunk, "--alive"); NEW.status.textContent = "WORKS ✓"; NEW.status.setAttribute("fill", "#1d4a2b");
     await wait(500);
-    const mine = jacks.filter(j => j.k === "A");
+    const mine = files.filter(j => j.k === "A");
     let left = mine.length;
     const order = [L, X, DB];
     for (const c of order) {
@@ -446,18 +500,22 @@ ${lines.join("\n")}`;
       }));
       await wait(250);
     }
+    // the Keychain entry: keyroll cannot see or edit it, so it rings for the operator
+    stores.filter(j => j.k === "A").forEach(j => { j.halo.classList.add("on"); lamp(j.lamp, "--ring", "blink"); ticket(j, j.ticket); });
     const A = keyOf("A");
     A.revoked = true; A.g.style.opacity = .45; lamp(A.trunk, "--dead"); A.status.textContent = "REVOKED ✓";
     state.rotated = true;
     setMeter("OLD KEY · 9 » 1");
     state.phase = "idle"; lockLevers(false); levers.rotate.disabled = true;
     replayBtn.hidden = false;
+    settle();
   }
 
   // autoplay once, when the board is on screen; any click takes over
-  let auto = null;
-  function stopAuto() { if (auto) { auto.stop = true; } }
+  let auto = null, taken = false; // taken: a click before autoplay started still wins
+  function stopAuto() { taken = true; if (auto) { auto.stop = true; } }
   async function autoplay() {
+    if (taken) return;
     const run = auto = { stop: false };
     await selectKey("A");
     await wait(2600); if (run.stop) return;
@@ -473,11 +531,13 @@ ${lines.join("\n")}`;
     state = { phase: "idle", sel: null, checked: false, rotated: false };
     KEYS.forEach(k => { k.revoked = false; });
     if (!s) return;
-    const saved = reduce;
+    fast = true;
     (async () => {
       if (s.sel) await selectKey(s.rotated ? "A" : s.sel);
       if (s.checked) await doCheck();
       if (s.rotated) await doRotate();
+      if (s.rotated && s.sel !== "A") await selectKey(s.sel);
+      fast = false;
     })();
   }
   function reset() {
@@ -490,7 +550,7 @@ ${lines.join("\n")}`;
   levers.map.addEventListener("click", () => { stopAuto(); if (state.phase !== "busy") selectKey(state.rotated ? "R" : (state.sel || "A"), true); });
   levers.check.addEventListener("click", () => { stopAuto(); if (state.phase !== "busy") doCheck(); });
   levers.rotate.addEventListener("click", () => { stopAuto(); if (state.phase !== "busy") doRotate(); });
-  replayBtn.addEventListener("click", () => { reset(); autoplay(); });
+  replayBtn.addEventListener("click", () => { reset(); taken = false; autoplay(); });
 
   draw();
   levers.rotate.disabled = true;
@@ -498,7 +558,7 @@ ${lines.join("\n")}`;
   let lastNarrow = G.narrow;
   addEventListener("resize", () => {
     const n = stage.clientWidth < 700;
-    if (n !== lastNarrow && state.phase !== "busy") { lastNarrow = n; const s = state; state = null; draw(); }
+    if (n !== lastNarrow && state.phase !== "busy") { lastNarrow = n; draw(); }
   });
   const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); setTimeout(autoplay, reduce ? 0 : 500); } }, { threshold: .35 });
   io.observe(stage);

@@ -1,0 +1,37 @@
+
+Currently stored credentials:
+
+    Target: WindowsLive:target=virtualapp/didlogical
+    Type: Generic 
+    User: 02qxkfrmhyzg
+    Local machine persistence
+    
+    Target: LegacyGeneric:target=secrets.goose
+    Type: Generic 
+    User: secrets
+    Local machine persistence
+    
+    Target: LegacyGeneric:target=cli|5f3a9c0e1b2d4a68.Codex Auth
+    Type: Generic 
+    User: cli|5f3a9c0e1b2d4a68
+    Local machine persistence
+    
+    Target: LegacyGeneric:target=gemini-cli-api-key/default-api-key
+    Type: Generic 
+    User: default-api-key
+    Local machine persistence
+    
+    Target: LegacyGeneric:target=zed:url=https://api.anthropic.com
+    Type: Generic 
+    User: Bearer
+    Local machine persistence
+    
+    Target: LegacyGeneric:target=zed:url=https://llm.internal.example/v1
+    Type: Generic 
+    User: Bearer
+    Local machine persistence
+    
+    Target: Domain:target=fileserver01
+    Type: Domain Password
+    User: CORP\sam
+    
