@@ -228,8 +228,14 @@ func lev(a, b string) int {
 
 func (a *app) run(argv []string) int {
 	cmd := "map"
-	if len(argv) > 0 && !strings.HasPrefix(argv[0], "-") {
-		cmd, argv = argv[0], argv[1:]
+	if len(argv) > 0 {
+		switch a0 := argv[0]; {
+		case a0 == "-h" || a0 == "--help" || a0 == "--version":
+			// standalone top-level flags: `keyroll --version` must not fall through to map's flag parser
+			cmd, argv = a0, argv[1:]
+		case !strings.HasPrefix(a0, "-"):
+			cmd, argv = a0, argv[1:]
+		}
 	}
 	switch cmd {
 	case "help", "-h", "--help":

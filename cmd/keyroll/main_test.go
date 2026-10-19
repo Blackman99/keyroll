@@ -185,6 +185,22 @@ func TestUsageErrors(t *testing.T) {
 	}
 }
 
+func TestVersionAndHelpFlags(t *testing.T) {
+	home := t.TempDir()
+	for _, args := range [][]string{{"version"}, {"--version"}} {
+		r := kr(t, home, "", nil, args...)
+		if r.code != exitOK || !strings.HasPrefix(r.stdout, "keyroll ") || r.stderr != "" {
+			t.Errorf("%v: code=%d stdout=%q stderr=%q", args, r.code, r.stdout, r.stderr)
+		}
+	}
+	for _, args := range [][]string{{"help"}, {"-h"}, {"--help"}} {
+		r := kr(t, home, "", nil, args...)
+		if r.code != exitOK || !strings.Contains(r.stdout, "usage") || r.stderr != "" {
+			t.Errorf("%v: code=%d stderr=%q", args, r.code, r.stderr)
+		}
+	}
+}
+
 func TestEmptyHome(t *testing.T) {
 	r := kr(t, t.TempDir(), "", nil)
 	if r.code != 0 || !strings.Contains(r.stdout, "no AI provider keys found") {
