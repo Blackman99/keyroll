@@ -30,9 +30,9 @@ import (
 	"github.com/Blackman99/keyroll/internal/scan"
 )
 
-var version = "0.1.0-dev"
+var version = "0.2.0-dev"
 
-// `go install …@v0.1.0` does not run GoReleaser's -X flag; take the module
+// `go install …@vX.Y.Z` does not run GoReleaser's -X flag; take the module
 // version Go recorded in the binary instead of claiming a dev build.
 func init() {
 	if !strings.HasSuffix(version, "-dev") {
