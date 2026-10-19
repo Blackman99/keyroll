@@ -9,8 +9,8 @@ Every item serves [GOAL.md](GOAL.md): find every copy, tell which still work, ro
 - `rotate` with plan, confirmation, hidden prompt, new-key validation (shape + liveness), atomic same-mode writes, backups, re-scan.
 - Read-only MCP stdio server (`key_map`, `key_copies`).
 
-## v0.2 — in progress
-- ✅ **Keychain / credential-manager awareness** (names only, never values), on `main`, not released yet: entries Claude Code, Codex, Gemini CLI, Goose and Zed keep in the macOS Keychain (`security find-*-password` without `-w`/`-g`), Windows Credential Manager (`cmdkey /list`) and the Secret Service (D-Bus `SearchItems`, never `GetSecrets`) are listed in the map and in every matching rotation plan as "by hand" steps. CI checks it against all three real stores.
+## v0.2 — v0.2.0 shipped 2026-10-19, rest in progress
+- ✅ **Keychain / credential-manager awareness** (names only, never values), shipped in v0.2.0: entries Claude Code, Codex, Gemini CLI, Goose and Zed keep in the macOS Keychain (`security find-*-password` without `-w`/`-g`), Windows Credential Manager (`cmdkey /list`) and the Secret Service (D-Bus `SearchItems`, never `GetSecrets`) are listed in the map and in every matching rotation plan as "by hand" steps. CI checks it against all three real stores.
 - **More caps**: read per-key limits where providers expose them (Anthropic workspace limits via an admin key the user passes explicitly; OpenAI project budgets).
 - **CI secrets inventory**: `keyroll ci` lists which GitHub Actions secrets *names* look like provider keys in your repos (`gh secret list`), so the "where else" list includes CI.
 - `rotate --from-file` for teams that keep a new key in a password manager CLI (`op read`, `bw get`).
