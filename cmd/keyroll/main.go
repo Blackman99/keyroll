@@ -30,7 +30,7 @@ import (
 	"github.com/Blackman99/keyroll/internal/scan"
 )
 
-var version = "0.2.0-dev"
+var version = "0.2.1-dev"
 
 // `go install …@vX.Y.Z` does not run GoReleaser's -X flag; take the module
 // version Go recorded in the binary instead of claiming a dev build.
