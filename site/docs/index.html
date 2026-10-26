@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>keyroll docs · install, usage, reference, FAQ</title>
-<meta name="description" content="keyroll documentation: install, map / check / rotate, flags and environment, JSON output, every location it reads, issuer endpoints, exit codes, MCP, FAQ.">
+<meta name="description" content="keyroll documentation: install, map / check / rotate, GitHub Actions secret names, flags and environment, JSON output, every location it reads, issuer endpoints, exit codes, MCP, FAQ.">
 <link rel="canonical" href="https://blackman99.github.io/keyroll/docs/">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../logo-512.png" type="image/png" sizes="512x512">
@@ -13,14 +13,14 @@
 <meta property="og:site_name" content="keyroll">
 <meta property="og:url" content="https://blackman99.github.io/keyroll/docs/">
 <meta property="og:title" content="keyroll docs">
-<meta property="og:description" content="Install, map / check / rotate, flags, JSON output, every location keyroll reads, issuer endpoints, exit codes, MCP and FAQ.">
+<meta property="og:description" content="Install, map / check / rotate, CI secret names, flags, JSON output, every location keyroll reads, issuer endpoints, exit codes, MCP and FAQ.">
 <meta property="og:image" content="https://blackman99.github.io/keyroll/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="A cord switchboard: one red Anthropic key patched into nine jacks labelled with the files that hold a copy of it.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="keyroll docs">
-<meta name="twitter:description" content="Install, map / check / rotate, flags, JSON output, locations, issuer endpoints, exit codes, MCP, FAQ.">
+<meta name="twitter:description" content="Install, map / check / rotate, CI secret names, flags, JSON output, locations, issuer endpoints, exit codes, MCP, FAQ.">
 <meta name="twitter:image" content="https://blackman99.github.io/keyroll/og.png">
 <link rel="preload" href="../fonts/libre-franklin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../style.css">
@@ -74,7 +74,7 @@
 
 <section id="usage">
   <div class="strip"><span class="no">02</span><h2>Usage</h2></div>
-  <h2 class="big">Map, check, rotate.</h2>
+  <h2 class="big">Map, check, rotate, and CI.</h2>
   <h3>keyroll <span class="mono">(map)</span></h3>
   <p>Offline. Lists every key it finds, grouped by key, with each copy’s file, line, field name and class. Nothing is sent anywhere and no key is ever printed: you see <code>sk-ant-…M1AA</code> and the fingerprint <code>#38bb1575</code> (first 8 hex characters of the key’s SHA-256).</p>
   <div class="term">$ keyroll
@@ -103,15 +103,47 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
   <p>Give the fingerprint (or its first 4+ characters, or the last 4 of the key). keyroll asks for the new key with echo off, or reads it from stdin if piped:</p>
   <div class="term">pbpaste | keyroll rotate 38bb1575          # macOS
 wl-paste | keyroll rotate 38bb1575         # Wayland
-keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
+keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing
+keyroll rotate 38bb1575 --ci you/agent-bot # also list that repo's Actions secrets</div>
   <ol>
     <li>The new key is cleaned of quotes and whitespace and refused if it is the same key, a login token, or another issuer’s key.</li>
     <li>Unless <code>--offline</code>, keyroll asks the issuer whether the new key works, and refuses one it rejects.</li>
-    <li>It prints the plan: <b>write</b> for live copies, <b>scrub</b> for leftovers (the old key becomes <code>[revoked-by-keyroll:38bb1575]</code> and the new key is not added), <b>by hand</b> for databases, then the <b>credential-store</b> entries of the same issuer that may hold the key (listed by name; keyroll cannot see whether they do). It asks once (or <code>--yes</code>).</li>
+    <li>It prints the plan: <b>write</b> for live copies, <b>scrub</b> for leftovers (the old key becomes <code>[revoked-by-keyroll:38bb1575]</code> and the new key is not added), <b>by hand</b> for databases, then the <b>credential-store</b> entries of the same issuer that may hold the key (listed by name; keyroll cannot see whether they do), and with <code>--ci owner/name</code> the <a href="#ci">GitHub Actions secrets</a> whose names point at that issuer. It asks once (or <code>--yes</code>).</li>
     <li>Each file: originals copied to <code>~/.keyroll/backups/&lt;time&gt;-&lt;fp&gt;/</code>, the old key’s bytes replaced, written to a temp file in the same folder with the original mode, fsynced, renamed over. Symlinks are written through to their target. A file that changed during the rotation is left untouched.</li>
-    <li>keyroll scans again and prints how many places still hold the old key, then the by-hand steps (databases, credential-store entries), the issuer’s revoke page and its spend-limit page.</li>
+    <li>keyroll scans again and prints how many places still hold the old key, then the by-hand steps (databases, credential-store entries, CI secrets), the issuer’s revoke page and its spend-limit page.</li>
     <li>The last line of every rotation asks the issuer about the <b>old</b> key: <b>REFUSES</b> means it is revoked; <b>ACCEPTS</b> means it is not, and copies keyroll cannot see (a hosted console, CI secrets, another machine) can still spend on it.</li>
   </ol>
+
+  <h3 id="ci">keyroll ci</h3>
+  <p>Lists the GitHub Actions secrets whose <em>names</em> look like AI provider keys, through the <a href="https://cli.github.com">GitHub CLI</a> you are logged in with: repository, environment and organization secrets. GitHub never returns a secret’s value, so keyroll never sees one; it only runs <code>gh secret list</code>, <code>gh repo list</code>/<code>view</code> and GET requests through <code>gh api</code>, and refuses anything else.</p>
+  <div class="term">keyroll ci                              # the GitHub repo of this folder
+keyroll ci --repo octo-demo/agent-bot   # repeatable; owner/name or a github.com URL
+keyroll ci --owner acme-labs            # every repo of a user or organization
+keyroll ci --all --json                 # every repo of your gh account</div>
+  <div class="term">keyroll ci  7 of 11 secret names in 2 repos look like AI provider keys · names only, GitHub never returns values
+
+  octo-demo/agent-bot
+      repository     ANTHROPIC_API_KEY        Anthropic API key · updated 2026-10-03
+                     → gh secret set ANTHROPIC_API_KEY --repo octo-demo/agent-bot
+      env production OPENROUTER_API_KEY       OpenRouter API key · updated 2026-10-12
+                     → gh secret set OPENROUTER_API_KEY --env production --repo octo-demo/agent-bot
+  …
+  acme-labs organization secrets, usable by acme-labs/web
+      org acme-labs  PROD_ANTHROPIC_KEY
+                     probably Anthropic API key (the name mentions ANTHROPIC) · updated 2026-09-28
+                     → an org admin updates it at
+                       https://github.com/organizations/acme-labs/settings/secrets/actions
+
+  next  keyroll rotate 38bb1575 --ci octo-demo/agent-bot --ci acme-labs/web
+        rotating your Anthropic key lists these 2 secrets as by-hand steps</div>
+  <ul>
+    <li>Names are matched against the variables each issuer documents (<code>ANTHROPIC_API_KEY</code>, <code>GEMINI_API_KEY</code>, <code>HF_TOKEN</code>, …), then against names that mention an issuer and end in KEY, TOKEN or SECRET, marked <em>probably</em>.</li>
+    <li><code>CLAUDE_CODE_OAUTH_TOKEN</code> is a Claude Code login token (<code>claude setup-token</code>), not an API key: listed, never added to an API key’s rotation.</li>
+    <li>A secret has no fingerprint, so keyroll cannot tell which key it holds. The <b>next</b> lines pair each issuer with your local key of that issuer, and <code>rotate --ci</code> adds the secrets as by-hand steps that say <em>if it holds this key</em>.</li>
+    <li>Organization secrets get the settings page instead of <code>gh secret set --org</code>, which would reset which repositories can use the secret.</li>
+    <li>Needs read access to the repos (collaborator, or a token with the <em>Secrets: read</em> permission). Actions’ own <code>GITHUB_TOKEN</code> can never list secrets. Without <code>gh</code>, logged out or with a bad token it exits <code>3</code> and prints the command that fixes it; a repo it cannot read is reported and the others are still listed.</li>
+    <li>Not covered: Dependabot and Codespaces secrets, Actions variables, other CI providers. Not exposed over MCP, which stays offline.</li>
+  </ul>
 
   <h3>keyroll paths</h3>
   <p>Every fixed location keyroll reads and whether it exists on this machine (<a href="#where">full list</a>), then the credential-store entry names it asks about on this OS.</p>
@@ -126,17 +158,23 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
   <div class="tablewrap"><table class="ring">
     <thead><tr><th>Flag</th><th>Commands</th><th>Meaning</th></tr></thead>
     <tbody>
-      <tr><td><code>--json</code></td><td>map, check, rotate, paths</td><td>Machine-readable output. Never contains key values.</td></tr>
+      <tr><td><code>--json</code></td><td>map, check, rotate, ci, paths</td><td>Machine-readable output. Never contains key values.</td></tr>
       <tr><td><code>--root DIR</code></td><td>map, check, rotate</td><td>Walk DIR for <code>.env</code> files and project configs. Repeatable. Default: your home folder.</td></tr>
       <tr><td><code>--depth N</code></td><td>map, check, rotate</td><td>How deep the walk goes (default 6). <code>node_modules</code>, <code>.git</code>, caches, VMs and agent transcript folders are skipped.</td></tr>
       <tr><td><code>--no-walk</code></td><td>map, check, rotate</td><td>Only the fixed locations, no walk.</td></tr>
-      <tr><td><code>--provider ID</code></td><td>map, check, rotate</td><td>Only keys of one issuer: <code>anthropic</code>, <code>openai</code>, <code>openrouter</code>, <code>google</code>, <code>xai</code>, <code>groq</code>, <code>deepseek</code>, …</td></tr>
+      <tr><td><code>--provider ID</code></td><td>map, check, rotate, ci</td><td>Only keys of one issuer: <code>anthropic</code>, <code>openai</code>, <code>openrouter</code>, <code>google</code>, <code>xai</code>, <code>groq</code>, <code>deepseek</code>, …</td></tr>
       <tr><td><code>--file PATH</code></td><td>map, check, rotate</td><td>Also scan this file. Repeatable.</td></tr>
-      <tr><td><code>--timeout 10s</code></td><td>check, rotate</td><td>Per-request limit for issuer checks.</td></tr>
+      <tr><td><code>--timeout 10s</code></td><td>check, rotate, ci</td><td>Per-request limit for issuer checks; for <code>ci</code>, per <code>gh</code> call (default 20s).</td></tr>
       <tr><td><code>--dry-run</code></td><td>rotate</td><td>Print the plan, change nothing.</td></tr>
       <tr><td><code>--yes</code></td><td>rotate</td><td>Skip the confirmation (required when there is no terminal).</td></tr>
       <tr><td><code>--offline</code></td><td>rotate</td><td>Don’t check the new key with its issuer first.</td></tr>
       <tr><td><code>--no-backup</code></td><td>rotate</td><td>Don’t keep originals in <code>~/.keyroll/backups</code>.</td></tr>
+      <tr><td><code>--repo OWNER/NAME</code></td><td>ci</td><td>Repo to list. Repeatable; a github.com URL works too. Default: the GitHub remote of the current folder.</td></tr>
+      <tr><td><code>--owner NAME</code></td><td>ci</td><td>Every repo of this user or organization. Repeatable.</td></tr>
+      <tr><td><code>--all</code></td><td>ci</td><td>Every repo of the account <code>gh</code> is logged in as.</td></tr>
+      <tr><td><code>--limit N</code></td><td>ci</td><td>Repos per owner for <code>--owner</code>/<code>--all</code> (default 200, at most 1000). The output says when an owner has more.</td></tr>
+      <tr><td><code>--archived</code></td><td>ci</td><td>Include archived repos (skipped by default).</td></tr>
+      <tr><td><code>--ci OWNER/NAME</code></td><td>rotate</td><td>Add this repo’s matching Actions secrets (and the organization secrets it can use) to the plan as by-hand steps. Repeatable.</td></tr>
       <tr><td><code>--no-credstore</code></td><td>map, rotate</td><td>Don’t ask the OS credential store (Keychain, Credential Manager, Secret Service) for entry names. <code>check</code> never asks it.</td></tr>
     </tbody>
   </table></div>
@@ -146,6 +184,7 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
       <tr><td><code>CODEX_HOME</code>, <code>CLAUDE_CONFIG_DIR</code>, <code>LLM_USER_PATH</code>, <code>OPENCODE_DB</code>, <code>HISTFILE</code></td><td>Honoured the same way the tools themselves honour them.</td></tr>
       <tr><td><code>XDG_CONFIG_HOME</code>, <code>XDG_DATA_HOME</code>, <code>APPDATA</code></td><td>Where config and data folders are on Linux and Windows.</td></tr>
       <tr><td><code>DBUS_SESSION_BUS_ADDRESS</code>, <code>XDG_RUNTIME_DIR</code></td><td>Linux: the Secret Service is asked only when there is a D-Bus session.</td></tr>
+      <tr><td><code>GH_TOKEN</code>, <code>GH_HOST</code></td><td>Read by <code>gh</code> itself for <code>keyroll ci</code>; keyroll never reads or passes the token.</td></tr>
       <tr><td><code>NO_COLOR</code>, <code>FORCE_COLOR</code>, <code>COLUMNS</code></td><td>Output colour and width. Colour is on only for a terminal.</td></tr>
     </tbody>
   </table></div>
@@ -159,8 +198,8 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
     <tbody>
       <tr><td><code>0</code></td><td>OK.</td></tr>
       <tr><td><code>1</code></td><td>Action needed: <code>check</code> found a rejected key that something still uses, or a <code>rotate</code> step failed.</td></tr>
-      <tr><td><code>2</code></td><td>Usage error (unknown flag or command, no such key, refused new key).</td></tr>
-      <tr><td><code>3</code></td><td>Runtime error.</td></tr>
+      <tr><td><code>2</code></td><td>Usage error (unknown flag or command, no such key, refused new key, <code>ci</code> outside a GitHub repo without <code>--repo</code>).</td></tr>
+      <tr><td><code>3</code></td><td>Runtime error (for <code>ci</code>: <code>gh</code> missing, logged out or refused, or no repo could be read).</td></tr>
     </tbody>
   </table></div>
   <h3>JSON (<code>keyroll --json</code>)</h3>
@@ -188,6 +227,7 @@ keyroll rotate 38bb1575 --dry-run          # show the plan, change nothing</div>
 }</div>
   <p><code>credential_store</code> is left out with <code>--no-credstore</code>; when the store could not be asked it carries <code>skipped</code> with the reason. <code>holds</code> is <code>api key</code>, <code>api keys</code> (several issuers in one entry), <code>api key or login</code> or <code>login</code>. <code>rotate --dry-run --json</code> puts the entries that may hold the key under the plan’s <code>credential_store</code>. No entry ever carries a value.</p>
   <p><code>check --json</code> adds a result per key: <code>state</code>, <code>http</code>, <code>detail</code>, <code>endpoint</code>, <code>ms</code>, and <code>limit_usd</code> / <code>usage_usd</code> / <code>no_cap</code> where the issuer reports them. Every JSON output is tested to contain no 8-character run of any key.</p>
+  <p><code>ci --json</code> returns <code>login</code>, <code>repos</code> (<code>name</code>, <code>secret_names</code>, <code>environments</code>, <code>error</code>) and <code>secrets</code>: <code>name</code>, <code>scope</code> (<code>repository</code>, <code>environment</code>, <code>organization</code>), <code>repo</code> / <code>environment</code> / <code>org</code>, <code>updated</code>, <code>provider</code>, <code>kind</code>, <code>match</code> and <code>manual</code>. <code>rotate --dry-run --json --ci …</code> puts them under the plan’s <code>ci_secrets</code>. Names and dates only.</p>
   <h3>How keys are recognised</h3>
   <ul>
     <li>By issuer prefix where one exists: <code>sk-ant-api03-</code>, <code>sk-ant-admin01-</code>, <code>sk-or-v1-</code>, <code>sk-proj-</code>, <code>sk-svcacct-</code>, <code>AIza</code>, <code>gsk_</code>, <code>xai-</code>, <code>hf_</code>, <code>csk-</code>, <code>fw_</code>, <code>pplx-</code>.</li>
@@ -307,6 +347,8 @@ codex mcp add keyroll -- keyroll mcp</div>
     <dd>It means the issuer refused it just now (401 or its invalid-key answer). Issuers give the same answer for revoked, deleted and mistyped keys, so keyroll does not claim more than that. It never calls a key rejected on a 403, 429, 5xx or timeout; those show as unknown.</dd>
     <dt>Can I run it in CI?</dt>
     <dd>Map and check work anywhere (<code>--root .</code>, <code>--json</code>, exit code 1 on a rejected key that is still configured). Rotate is meant for your own machine.</dd>
+    <dt>Can it read my GitHub Actions secrets?</dt>
+    <dd>Only their names, because that is all GitHub gives anyone: secret values are write-only. <code>keyroll ci</code> uses those names to remind you which repos to update after a rotation. It never sets a secret; the replacement step is printed for you to run.</dd>
     <dt>What does the fingerprint reveal?</dt>
     <dd>32 bits of a SHA-256 of the key: enough to tell your keys apart in a list, useless for recovering the key.</dd>
     <dt>Windows?</dt>

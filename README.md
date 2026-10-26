@@ -27,6 +27,7 @@ keyroll answers those three questions:
 - **`keyroll`** maps every copy of every key, offline: agent tool configs, app state, shell rc files and history, project `.env` files, and the backups those leave behind.
 - **`keyroll check`** asks each issuer, with one free read-only request, whether each key is **ALIVE** (accepted) or **REJECTED** (revoked, deleted or mistyped). If Claude Code started throwing 401s, this tells you it is the issuer, not a bug in your code.
 - **`keyroll rotate <fp>`** takes the new key once, rewrites every live copy, scrubs the old key out of leftovers (and does *not* copy the new key into them), backs up the originals, and **ends by asking the issuer whether the old key is actually revoked**.
+- **`keyroll ci`** lists the GitHub Actions secrets whose *names* look like provider keys (`ANTHROPIC_API_KEY`, an org's `PROD_ANTHROPIC_KEY`), through `gh`. GitHub never returns secret values, so keyroll never sees them; `rotate --ci owner/name` adds them to the plan as by-hand steps.
 
 Keys you pasted into agent *chats* sit in session transcripts (`~/.claude/projects/**/*.jsonl`, `~/.codex/sessions`). keyroll does not read those; that is what [spillscan](https://github.com/Blackman99/spillscan) is for, and keyroll's output points you there.
 
@@ -63,6 +64,7 @@ keyroll  1 key · 9 copies · 5 tools · offline, nothing sent
   next  keyroll check             ask each issuer: is each key ALIVE or REJECTED? (one free GET per key)
         keyroll rotate 38bb1575   paste the new key once: 3 files rewritten, 5 leftovers scrubbed, 1 by hand
   not here  keys pasted into agent chats live in session transcripts: github.com/Blackman99/spillscan
+            keys stored as GitHub Actions secrets: run `keyroll ci`
   scanned 17 files and 4 folders in 0.01s
 ```
 
@@ -146,6 +148,72 @@ pbpaste | keyroll rotate 38bb1575 --yes
 5. keyroll scans again and says how many places still hold the old key and what is left by hand.
 6. **The last line is always the old key's status.** keyroll asks the issuer about the old key: `✓ … now REFUSES it … revoked`, or `✕ … still ACCEPTS it … NOT revoked yet` (copies keyroll cannot see, like a hosted console, CI secrets or another machine, can still spend on it), or, with `--offline`, *treat it as NOT revoked*. Revoking is a dashboard click keyroll cannot do for you; it prints the link.
 
+### `keyroll ci`
+
+A key you rotated on your laptop can still be sitting in a repo's Actions secrets, where no file scan reaches. `keyroll ci` asks GitHub, through the [GitHub CLI](https://cli.github.com) you are logged in with, which secret names look like AI provider keys:
+
+```sh
+keyroll ci                              # the GitHub repo of this folder
+keyroll ci --repo octo-demo/agent-bot   # repeatable; owner/name or a github.com URL
+keyroll ci --owner acme-labs            # every repo of a user or organization (--limit 200, --archived)
+keyroll ci --all --json                 # every repo of your gh account
+```
+
+On the made-up repos in [`internal/ci/testdata`](internal/ci/testdata) (the fingerprints are the demo home's keys):
+
+```text
+keyroll ci  7 of 11 secret names in 2 repos look like AI provider keys · names only, GitHub never returns values
+
+  octo-demo/agent-bot
+      repository     ANTHROPIC_API_KEY        Anthropic API key · updated 2026-10-03
+                     → gh secret set ANTHROPIC_API_KEY --repo octo-demo/agent-bot
+      repository     CLAUDE_CODE_OAUTH_TOKEN
+                     Claude Code login token, not an API key · updated 2026-09-21
+                     → only if it leaked: run `claude setup-token` for a new one, then gh secret set
+                       CLAUDE_CODE_OAUTH_TOKEN --repo octo-demo/agent-bot
+      repository     OPENAI_API_KEY           OpenAI API key · updated 2026-08-30
+                     → gh secret set OPENAI_API_KEY --repo octo-demo/agent-bot
+      env production OPENROUTER_API_KEY       OpenRouter API key · updated 2026-10-12
+                     → gh secret set OPENROUTER_API_KEY --env production --repo octo-demo/agent-bot
+
+  acme-labs/web
+      repository     GEMINI_API_KEY           Google AI Studio API key · updated 2026-09-02
+                     → gh secret set GEMINI_API_KEY --repo acme-labs/web
+      repository     GOOGLE_API_KEY           Google AI Studio API key · updated 2026-03-15
+                     other Google APIs (Maps, YouTube) use this name too: make sure it is the Gemini
+                     key
+                     → gh secret set GOOGLE_API_KEY --repo acme-labs/web
+
+  acme-labs organization secrets, usable by acme-labs/web
+      org acme-labs  PROD_ANTHROPIC_KEY
+                     probably Anthropic API key (the name mentions ANTHROPIC) · updated 2026-09-28
+                     → an org admin updates it at
+                       https://github.com/organizations/acme-labs/settings/secrets/actions (keeps
+                       its repository access)
+
+  next  keyroll rotate 38bb1575 --ci octo-demo/agent-bot --ci acme-labs/web
+        rotating your Anthropic key lists these 2 secrets as by-hand steps
+        keyroll rotate 268a465f --ci octo-demo/agent-bot
+        rotating your OpenAI key lists this secret as a by-hand step
+        keyroll rotate 8e460503 --ci octo-demo/agent-bot
+        rotating your OpenRouter key lists this secret as a by-hand step
+        keyroll rotate ab770573 --ci acme-labs/web
+        rotating your Google AI Studio key lists these 2 secrets as by-hand steps
+
+  a secret has no fingerprint, so keyroll cannot tell which key it holds: replace it when you rotate
+  that issuer's key. `gh secret set` asks for the new value, or reads it from stdin
+  asked GitHub, as octo-demo, for the secret names of 2 repos, 2 environments and 1 organization
+
+$ keyroll [ci --all --limit 3]  (exit 3)
+```
+
+- **Names only.** GitHub's API never returns a secret's value (they are write-only), and keyroll only runs `gh secret list`, `gh repo list/view` and GET requests through `gh api`; a guard in the code refuses anything else. Repository, environment and organization secrets are listed; Dependabot and Codespaces secrets are not.
+- Names are matched against the variables each issuer documents (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `HF_TOKEN`, …), then against names that mention an issuer and end in KEY, TOKEN or SECRET (`PROD_ANTHROPIC_KEY`, marked "probably"). `CLAUDE_CODE_OAUTH_TOKEN` (the token [claude-code-action](https://github.com/anthropics/claude-code-action) uses) is a login token, not an API key, and is never added to an API key's rotation.
+- A secret has no fingerprint, so keyroll cannot tell *which* key it holds. Each one gets the exact replacement step: `gh secret set NAME --repo …` (it asks for the value, or reads stdin), or for an organization secret the settings page, because `gh secret set --org` would reset which repositories can use it.
+- **`keyroll rotate <fp> --ci owner/name`** (repeatable) adds that repo's matching secrets, and the organization secrets it can use, to the plan and to the final "now" list. If `gh` fails, rotate stops before writing anything.
+- Needs `gh` logged in with read access to the repos (collaborator, or a token with the "Secrets: read" permission). Actions' own `GITHUB_TOKEN` can never list secrets; keyroll says so. Without `gh`, or logged out, it exits `3` with the command that fixes it. A repo it cannot read is reported and the rest are still listed.
+- Not over MCP: `keyroll mcp` stays offline.
+
 ### `keyroll paths`, `keyroll mcp`
 
 - `keyroll paths` lists every fixed location keyroll reads and which exist on this machine.
@@ -155,7 +223,7 @@ pbpaste | keyroll rotate 38bb1575 --yes
 claude mcp add keyroll -- keyroll mcp
 ```
 
-Flags: `--json`, `--provider anthropic`, `--root DIR` (walk more folders, repeatable), `--depth N`, `--no-walk`, `--file PATH`, `--timeout 10s`, `--no-credstore`. Exit codes: `0` ok · `1` action needed · `2` usage · `3` error.
+Flags: `--json`, `--provider anthropic`, `--root DIR` (walk more folders, repeatable), `--depth N`, `--no-walk`, `--file PATH`, `--timeout 10s`, `--no-credstore`; `keyroll ci` takes `--repo`, `--owner`, `--all`, `--limit`, `--archived`, `--provider`, `--json`, `--timeout`. Exit codes: `0` ok · `1` action needed · `2` usage · `3` error.
 
 ## What it covers
 
@@ -172,7 +240,7 @@ Flags: `--json`, `--provider anthropic`, `--root DIR` (walk more folders, repeat
 | Projects | a walk of your home (or `--root`) for `.env*`, `.dev.vars`, `.envrc`, `opencode.json`, `.aider.conf.yml`, `.mcp.json`, `.claude/settings.local.json`, editor Local History copies; `*.bak` / `~` / `.orig` copies as leftovers |
 | Issuers | Anthropic, OpenAI, OpenRouter, Google AI Studio, xAI, DeepSeek, Groq, Mistral, Together, Cerebras, Fireworks, Moonshot, Z.ai, Hugging Face (checked); Perplexity (mapped only, no free endpoint) |
 
-**Not covered:** agent chat transcripts ([spillscan](https://github.com/Blackman99/spillscan)), git history ([gitleaks](https://github.com/gitleaks/gitleaks) / [trufflehog](https://github.com/trufflesecurity/trufflehog)), the values inside OS credential stores (entries are listed by name; keyroll never reads or decrypts them), and secrets stored in CI providers (they are not on your disk; a `gh secret list` inventory is on the [roadmap](ROADMAP.md)). [heldkeys](https://github.com/hugomn/heldkeys) answers a related question, "which keys can my agent reach right now".
+**Not covered:** agent chat transcripts ([spillscan](https://github.com/Blackman99/spillscan)), git history ([gitleaks](https://github.com/gitleaks/gitleaks) / [trufflehog](https://github.com/trufflesecurity/trufflehog)), the values inside OS credential stores (entries are listed by name; keyroll never reads or decrypts them), the values of CI secrets (`keyroll ci` lists GitHub Actions secret names; other CI providers are not covered). [heldkeys](https://github.com/hugomn/heldkeys) answers a related question, "which keys can my agent reach right now".
 
 ## Install
 
@@ -192,6 +260,7 @@ Or download a binary for macOS, Linux or Windows (amd64 / arm64) from [Releases]
 go test ./...                 # unit + end-to-end tests on a fake home
 ./scripts/integration.sh      # real Codex and llm CLIs write keys, keyroll rotates them, the tools read the new key back
 dbus-run-session -- ./scripts/credstore-smoke.sh   # a real credential store gets fake entries; keyroll lists them by name, never the value
+./scripts/ci-gh-smoke.sh      # keyroll ci against the real gh: logged out, bad token, Actions token
 ```
 
 CI runs the credential-store smoke test against the real macOS Keychain, Windows Credential Manager and GNOME Keyring.

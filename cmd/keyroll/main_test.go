@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Blackman99/keyroll/internal/check"
+	"github.com/Blackman99/keyroll/internal/ci"
 	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/testhome"
@@ -37,7 +38,9 @@ func newApp(home string, stdin string, srv *httptest.Server) (*app, *bytes.Buffe
 	a := &app{stdout: &out, stderr: &errb, stdin: strings.NewReader(stdin),
 		env:     locate.Env{Home: home, GOOS: "linux", Getenv: func(string) string { return "" }},
 		checker: c, now: func() time.Time { return time.Unix(1760750000, 0) },
-		tty: func() (io.ReadWriteCloser, error) { return nil, errors.New("no tty in tests") }}
+		tty: func() (io.ReadWriteCloser, error) { return nil, errors.New("no tty in tests") },
+		// tests never reach the real gh: as if it were not installed, unless a test sets one
+		gh: (&ci.Canned{Missing: true}).Run}
 	return a, &out, &errb
 }
 

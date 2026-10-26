@@ -66,3 +66,42 @@ func TestHintAndAccepts(t *testing.T) {
 		t.Fatal("oat token should be a login token")
 	}
 }
+
+func TestForName(t *testing.T) {
+	for _, tc := range []struct {
+		name, id string
+		kind     Kind
+		known    bool
+	}{
+		{"OPENAI_API_KEY", "openai", KindAPI, true},
+		{"anthropic_api_key", "anthropic", KindAPI, true},
+		{"CLAUDE_CODE_OAUTH_TOKEN", "anthropic", KindLogin, true},
+		{"OPENAI_ADMIN_KEY", "openai", KindAdmin, true},
+		{"HF_TOKEN", "huggingface", KindAPI, true},
+		{"GEMINI_API_KEY", "google", KindAPI, true},
+		{"PROD_ANTHROPIC_KEY", "anthropic", KindAPI, false},
+		{"OPENROUTERKEY", "openrouter", KindAPI, false},
+		{"STAGING_OPENAI_ADMIN_TOKEN", "openai", KindAdmin, false},
+		{"HF_HUB_TOKEN", "huggingface", KindAPI, false},
+		{"MY_CLAUDE_OAUTH_TOKEN", "anthropic", KindLogin, false},
+		{"DEEPSEEK_SECRET", "deepseek", KindAPI, false},
+	} {
+		m, ok := ForName(tc.name)
+		if !ok || m.Provider.ID != tc.id || m.Kind != tc.kind || m.Known != tc.known {
+			t.Errorf("%s: got %+v ok=%v", tc.name, m, ok)
+		}
+	}
+	for _, no := range []string{"NPM_TOKEN", "OPENAI_BASE_URL", "SHELF_TOKEN", "GOOGLE_MAPS_API_KEY", "DOCKERHUB_TOKEN", "AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN", "XAIVER_KEY"} {
+		if m, ok := ForName(no); ok {
+			t.Errorf("%s should not match, got %s", no, m.Provider.ID)
+		}
+	}
+}
+
+func TestEveryProviderHasEnvNames(t *testing.T) {
+	for _, p := range All {
+		if len(p.EnvNames()) == 0 {
+			t.Errorf("%s has no env var names", p.ID)
+		}
+	}
+}

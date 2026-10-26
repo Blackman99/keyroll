@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Blackman99/keyroll/internal/ci"
 	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/provider"
@@ -45,6 +46,9 @@ type Plan struct {
 	// Stores are credential-store entries that may hold this key. keyroll
 	// never reads their values, so it cannot know; they are by-hand steps.
 	Stores []credstore.Entry `json:"credential_store,omitempty"`
+	// CI are GitHub Actions secrets (`rotate --ci owner/repo`) whose names say
+	// they hold this issuer's key. Values are write-only on GitHub: by hand.
+	CI []ci.Secret `json:"ci_secrets,omitempty"`
 }
 
 // Marker replaces the old key in leftovers. It is not key-shaped, so no tool

@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/Blackman99/keyroll/internal/check"
+	"github.com/Blackman99/keyroll/internal/ci"
 	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/provider"
@@ -359,6 +360,7 @@ func notScanned(w io.Writer, s Style, spill bool) {
 		how = "run `spillscan`"
 	}
 	fmt.Fprintf(w, "  %s  %s\n", s.c(s.Bold, "not here"), s.c(s.Dim, "keys pasted into agent chats live in session transcripts: "+how))
+	fmt.Fprintf(w, "            %s\n", s.c(s.Dim, "keys stored as GitHub Actions secrets: run `keyroll ci`"))
 }
 
 // CheckRow pairs a key with its result.
@@ -540,7 +542,30 @@ func Plan(w io.Writer, s Style, pl rotate.Plan, newHint, newState string) {
 			fmt.Fprintf(w, "  %s %s\n", strings.Repeat(" ", 24), s.c(s.Blue, wrapAt("→ "+e.Manual, 27, s.Width)))
 		}
 	}
+	if len(pl.CI) > 0 {
+		fmt.Fprintf(w, "\n  %s %s\n", s.c(s.Bold, "CI secrets"), s.c(s.Dim, hang("(GitHub Actions) may hold this key: names only, GitHub never returns the values", 13, s.Width)))
+		nameW := 0
+		for _, c := range pl.CI {
+			nameW = max(nameW, utf8.RuneCountInString(c.Name))
+		}
+		for _, c := range pl.CI {
+			fmt.Fprintln(w, strings.TrimRight(fmt.Sprintf("  %s %s  %s", s.c(s.Blue, pad("by hand", 8)), pad(c.Name, nameW), s.c(s.Dim, ciWhere(c))), " "))
+			fmt.Fprintf(w, "  %s %s\n", strings.Repeat(" ", 9), s.c(s.Blue, "→ "+hang(c.Manual, 14, s.Width)))
+		}
+	}
 	fmt.Fprintln(w)
+}
+
+// ciWhere is a CI secret's place, with its last update when GitHub reports it.
+func ciWhere(c ci.Secret) string {
+	w := c.Where()
+	if c.Scope == ci.Organization && len(c.Repos) > 0 {
+		w += " (used by " + strings.Join(c.Repos, ", ") + ")"
+	}
+	if c.Updated != "" {
+		w += " · updated " + c.Updated
+	}
+	return w
 }
 
 func planExtra(st rotate.Step, providerID string) string {
@@ -590,6 +615,10 @@ func Applied(w io.Writer, s Style, res rotate.Result, home string, oldState chec
 	}
 	for _, e := range res.Plan.Stores {
 		fmt.Fprintf(w, "  %s\n", wrap(fmt.Sprintf("%d. %s in the %s (%s), if it holds this key: %s", n, e.Tool, e.Store, e.Display(), e.Manual), s.Width-2, 5))
+		n++
+	}
+	for _, c := range res.Plan.CI {
+		fmt.Fprintf(w, "  %s\n", wrap(fmt.Sprintf("%d. GitHub Actions secret %s in %s, if it holds this key: %s", n, c.Name, c.Where(), c.Manual), s.Width-2, 5))
 		n++
 	}
 	if p != nil && p.KeysURL != "" {

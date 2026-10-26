@@ -49,3 +49,6 @@ jobs:
       - run: npm install -g @openai/codex
       - run: pipx install llm
       - run: ./scripts/integration.sh
+      - name: real gh (keyroll ci explains what it cannot list)
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: go build -o kr ./cmd/keyroll && ./scripts/ci-gh-smoke.sh
