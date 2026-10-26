@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Blackman99/keyroll/internal/check"
+	"github.com/Blackman99/keyroll/internal/ci"
 	"github.com/Blackman99/keyroll/internal/credstore"
 	"github.com/Blackman99/keyroll/internal/locate"
 	"github.com/Blackman99/keyroll/internal/mcp"
@@ -59,6 +60,7 @@ type app struct {
 	tty            func() (io.ReadWriteCloser, error) // terminal for hidden input / confirmation
 	now            func() time.Time
 	stores         func() credstore.Result // OS credential-store names (nil = do not ask)
+	gh             ci.Runner               // GitHub CLI for `ci` and `rotate --ci`
 }
 
 func main() {
@@ -67,7 +69,8 @@ func main() {
 		tty: func() (io.ReadWriteCloser, error) { return os.OpenFile("/dev/tty", os.O_RDWR, 0) },
 		stores: func() credstore.Result {
 			return credstore.Lookup(context.Background(), credstore.Env{GOOS: runtime.GOOS, Getenv: os.Getenv})
-		}}
+		},
+		gh: ci.Exec}
 	os.Exit(a.run(os.Args[1:]))
 }
 
@@ -78,6 +81,7 @@ usage
                              plus credential-store entries AI tools keep keys in (by name only)
   keyroll check [fp…]        ask each issuer: ALIVE (accepted) or REJECTED (revoked / invalid), one free GET per key
   keyroll rotate <fp>        paste the new key once: live copies rewritten, leftovers scrubbed
+  keyroll ci                 GitHub Actions secrets whose names look like AI provider keys (names only, via gh)
   keyroll paths              every place keyroll looks, and which exist here
   keyroll mcp                read-only MCP server (stdio): fingerprints only, offline
   keyroll version
@@ -97,12 +101,22 @@ rotate
   --yes                      do not ask for confirmation
   --offline                  do not check that the new key works before writing it
   --no-backup                do not keep originals in ~/.keyroll/backups
+  --ci OWNER/NAME            also list that repo's matching Actions secrets as by-hand steps (repeatable)
   the new key is read from stdin if piped (pbpaste | keyroll rotate a91f3c2e), else asked for with echo off
+
+ci (needs the GitHub CLI, logged in)
+  --repo OWNER/NAME          repos to ask about (repeatable; default: the GitHub repo of this folder)
+  --owner LOGIN              every repo of a user or organization (repeatable)
+  --all                      every repo of the account gh is logged in as
+  --limit N                  repos per account for --owner / --all (default 200)
+  --archived                 include archived repos
+  --provider ID, --json      as above; --timeout per gh call (default 20s)
 
 exit codes: 0 ok · 1 action needed (a REJECTED key is still configured / a rotate step failed) · 2 usage · 3 error
 values are never printed, logged or written to JSON: keys show as their issuer prefix + last 4 and an 8-hex fingerprint.
 credential stores are asked for entry names only (security find-generic-password without -w, cmdkey /list,
 Secret Service SearchItems): keyroll never reads those values, so it lists them as by-hand steps.
+GitHub Actions secrets are write-only: gh returns their names, never values, and keyroll only ever lists them.
 `
 
 type multi []string
@@ -112,7 +126,9 @@ func (m *multi) Set(v string) error { *m = append(*m, v); return nil }
 
 type opts struct {
 	json, noWalk, dryRun, yes, offline, noBackup bool
-	noCredstore                                  bool
+	noCredstore, all, archived                   bool
+	limit                                        int
+	repos, owners, ciRepos                       multi
 	cmd                                          string
 	roots, files                                 multi
 	depth                                        int
@@ -121,25 +137,35 @@ type opts struct {
 	args                                         []string
 }
 
-var knownFlags = []string{"json", "root", "depth", "no-walk", "provider", "file", "dry-run", "yes", "offline", "no-backup", "timeout", "no-credstore", "help"}
-
 func (a *app) parse(cmd string, argv []string) (*opts, int) {
 	o := &opts{cmd: cmd}
 	fs := flag.NewFlagSet("keyroll "+cmd, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	fs.BoolVar(&o.json, "json", false, "")
-	fs.Var(&o.roots, "root", "")
-	fs.IntVar(&o.depth, "depth", 6, "")
-	fs.BoolVar(&o.noWalk, "no-walk", false, "")
 	fs.StringVar(&o.prov, "provider", "", "")
-	fs.Var(&o.files, "file", "")
-	fs.DurationVar(&o.timeout, "timeout", 10*time.Second, "")
-	fs.BoolVar(&o.noCredstore, "no-credstore", false, "")
+	o.depth = 6
+	if cmd == "ci" {
+		// ci asks GitHub, not the disk: none of the scan flags apply
+		fs.Var(&o.repos, "repo", "")
+		fs.Var(&o.owners, "owner", "")
+		fs.BoolVar(&o.all, "all", false, "")
+		fs.IntVar(&o.limit, "limit", 200, "")
+		fs.BoolVar(&o.archived, "archived", false, "")
+		fs.DurationVar(&o.timeout, "timeout", 20*time.Second, "")
+	} else {
+		fs.Var(&o.roots, "root", "")
+		fs.IntVar(&o.depth, "depth", 6, "")
+		fs.BoolVar(&o.noWalk, "no-walk", false, "")
+		fs.Var(&o.files, "file", "")
+		fs.DurationVar(&o.timeout, "timeout", 10*time.Second, "")
+		fs.BoolVar(&o.noCredstore, "no-credstore", false, "")
+	}
 	if cmd == "rotate" {
 		fs.BoolVar(&o.dryRun, "dry-run", false, "")
 		fs.BoolVar(&o.yes, "yes", false, "")
 		fs.BoolVar(&o.offline, "offline", false, "")
 		fs.BoolVar(&o.noBackup, "no-backup", false, "")
+		fs.Var(&o.ciRepos, "ci", "")
 	}
 	rest := argv
 	for {
@@ -152,7 +178,11 @@ func (a *app) parse(cmd string, argv []string) (*opts, int) {
 			if strings.HasPrefix(msg, "flag provided but not defined: ") {
 				bad := strings.TrimLeft(strings.TrimPrefix(msg, "flag provided but not defined: "), "-")
 				msg = "unknown option --" + bad
-				if s := suggest(bad); s != "" {
+				var known []string
+				fs.VisitAll(func(f *flag.Flag) { known = append(known, f.Name) })
+				if oc := otherCommand(cmd, bad); oc != "" {
+					msg += " (that is a `keyroll " + oc + "` option)"
+				} else if s := suggest(bad, known); s != "" {
 					msg += " (did you mean --" + s + "?)"
 				}
 			}
@@ -195,9 +225,26 @@ func (a *app) parse(cmd string, argv []string) (*opts, int) {
 	return o, -1
 }
 
-func suggest(bad string) string {
+// otherCommand names the command that does take --bad, for a flag given to
+// the wrong one (`keyroll map --repo x`).
+func otherCommand(cmd, bad string) string {
+	ciOnly := map[string]bool{"repo": true, "owner": true, "all": true, "limit": true, "archived": true}
+	scanOnly := map[string]bool{"root": true, "depth": true, "no-walk": true, "file": true, "no-credstore": true}
+	rotateOnly := map[string]bool{"dry-run": true, "yes": true, "offline": true, "no-backup": true, "ci": true}
+	switch {
+	case ciOnly[bad] && cmd != "ci":
+		return "ci"
+	case scanOnly[bad] && cmd == "ci":
+		return "map"
+	case rotateOnly[bad] && cmd != "rotate":
+		return "rotate"
+	}
+	return ""
+}
+
+func suggest(bad string, known []string) string {
 	best, bd := "", 3
-	for _, k := range knownFlags {
+	for _, k := range known {
 		if d := lev(bad, k); d < bd {
 			best, bd = k, d
 		}
@@ -255,10 +302,10 @@ func (a *app) run(argv []string) int {
 		return exitOK
 	case "paths":
 		return a.paths(argv)
-	case "map", "check", "rotate":
+	case "map", "check", "rotate", "ci":
 	default:
 		msg := fmt.Sprintf("keyroll: unknown command %q", cmd)
-		for _, c := range []string{"map", "check", "rotate", "paths", "mcp", "version"} {
+		for _, c := range []string{"map", "check", "rotate", "ci", "paths", "mcp", "version"} {
 			if lev(cmd, c) <= 2 {
 				msg += fmt.Sprintf(" (did you mean `keyroll %s`?)", c)
 				break
@@ -280,6 +327,8 @@ func (a *app) run(argv []string) int {
 		return a.mapCmd(o)
 	case "check":
 		return a.checkCmd(o)
+	case "ci":
+		return a.ciCmd(o)
 	default:
 		return a.rotateCmd(o)
 	}
@@ -418,6 +467,9 @@ func (a *app) rotateCmd(o *opts) int {
 		return exitUsage
 	}
 	pl.Stores = r.CredentialStore.For(k.Provider)
+	if pl.CI, code = a.rotateCI(o, k); code >= 0 {
+		return code
+	}
 	st := render.NewStyle(a.stdout)
 	if o.dryRun {
 		if o.json {
@@ -426,6 +478,9 @@ func (a *app) rotateCmd(o *opts) int {
 		render.Plan(a.stdout, st, pl, "key (not asked for in a dry run)", "")
 		w, s, m := pl.Counts()
 		fmt.Fprintf(a.stdout, "  dry run: would rewrite %d, scrub %d, leave %d for you%s. nothing changed.\n", w, s, m, storeNote(pl))
+		if len(o.ciRepos) == 0 {
+			fmt.Fprintf(a.stdout, "%s\n", st.Dim+"  GitHub Actions secrets are not in this plan: add --ci owner/name to list a repo's (see `keyroll ci`)"+st.Reset)
+		}
 		return exitOK
 	}
 	newKey, err := a.readNewKey(k)
@@ -519,16 +574,28 @@ func (a *app) rotateCmd(o *opts) int {
 	return exitOK
 }
 
-// storeNote counts the credential-store entries a plan asks the user to check.
+// storeNote counts the credential-store entries and CI secrets a plan asks
+// the user to check.
 func storeNote(pl rotate.Plan) string {
+	note := ""
 	switch n := len(pl.Stores); n {
 	case 0:
-		return ""
 	case 1:
-		return " + 1 credential-store entry to check"
+		note = " + 1 credential-store entry"
 	default:
-		return fmt.Sprintf(" + %d credential-store entries to check", n)
+		note = fmt.Sprintf(" + %d credential-store entries", n)
 	}
+	switch n := len(pl.CI); n {
+	case 0:
+	case 1:
+		note += " + 1 CI secret"
+	default:
+		note += fmt.Sprintf(" + %d CI secrets", n)
+	}
+	if note != "" {
+		note += " to check"
+	}
+	return note
 }
 
 func isTerminal(r io.Reader) bool {
