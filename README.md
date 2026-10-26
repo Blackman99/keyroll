@@ -12,7 +12,7 @@ Find every copy of your AI provider API keys on this machine, ask each issuer wh
 <a href="https://blackman99.github.io/keyroll/">website</a> · <a href="https://blackman99.github.io/keyroll/docs/">docs</a>
 </p>
 
-<p align="center"><img src="assets/demo.gif" width="860" alt="keyroll on a demo home: one Anthropic key in 9 places, the issuer rejects it, then rotate rewrites 3 live copies, scrubs 5 leftovers and ends by confirming the old key is revoked"></p>
+<p align="center"><img src="assets/demo.gif" width="860" alt="keyroll on a demo home: one Anthropic key in 9 places, the issuer rejects it, a credential-store entry for Zed shows up by name only, then rotate rewrites 3 live copies, scrubs 5 leftovers, lists the OpenCode database and the Zed entry as by-hand steps and ends by saying the old key is NOT revoked until you revoke it"></p>
 
 ## The problem
 
