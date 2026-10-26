@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>keyroll · where else did I paste that key?</title>
-<meta name="description" content="Find every copy of your AI provider API keys on this machine (Claude Code, Codex, OpenCode, Cline, shell rc, project .env, backups, history), ask each issuer which still work, and rotate a key everywhere at once.">
+<meta name="description" content="Find every copy of your AI provider API keys on this machine (Claude Code, Codex, OpenCode, Cline, shell rc, project .env, backups, history, credential stores, GitHub Actions secret names), ask each issuer which still work, and rotate a key everywhere at once.">
 <link rel="canonical" href="https://blackman99.github.io/keyroll/">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="logo-512.png" type="image/png" sizes="512x512">
@@ -128,33 +128,47 @@ keyroll  5 keys · 19 copies · 9 tools · offline, nothing sent
       <li>Originals go to <code>~/.keyroll/backups/</code> (folder 700, files 600) and show up in the next map as leftovers, so you can delete them once the old key is revoked.</li>
       <li>A credential-store entry that may hold the key (say Claude Code’s <code>"Claude Code"</code> Keychain item) is listed with that tool’s own re-login step. keyroll cannot see whether it holds the old key, so it never touches it and does not count it as a copy.</li>
       <li>Afterwards keyroll scans again and tells you how many places still hold the old key, then the revoke and spend-limit links for that issuer.</li>
-      <li><b>The last line is always the old key’s status.</b> keyroll asks the issuer one more time: <em>now REFUSES it, revoked</em>, or <em>still ACCEPTS it, NOT revoked yet</em>, because a copy keyroll cannot see (a hosted console, CI secrets, another machine) can still spend on it until you click revoke.</li>
+      <li>With <code>--ci owner/name</code>, the repo’s GitHub Actions secrets whose names point at the same issuer join the plan as by-hand steps, each with its <code>gh secret set</code> line (<a href="#ci">below</a>).</li>
+      <li><b>The last line is always the old key’s status.</b> keyroll asks the issuer one more time: <em>now REFUSES it, revoked</em>, or <em>still ACCEPTS it, NOT revoked yet</em>, because a copy keyroll cannot see (a hosted console, a CI secret, another machine) can still spend on it until you click revoke.</li>
     </ul>
     <div class="term wrapcmd"><button class="copy" data-copy="c-rot" type="button">copy</button><span id="c-rot">$ keyroll rotate 38bb1575 --dry-run</span></div>
   </section>
 
+  <section class="card" id="ci">
+    <div class="strip"><span class="no">05</span><h2>CI · names only</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <h3>The copy that is not on your disk.</h3>
+    <p>A key you rotated on your laptop can still sit in a repo’s Actions secrets, and the next workflow run fails with the same 401. <code>keyroll ci</code> asks GitHub, through the <a href="https://cli.github.com">gh</a> you are already logged in with, which repository, environment and organization secret <em>names</em> look like provider keys: <code>ANTHROPIC_API_KEY</code>, an org’s <code>PROD_ANTHROPIC_KEY</code>, <code>CLAUDE_CODE_OAUTH_TOKEN</code> (a login token, kept apart). GitHub never returns secret values to anyone, so keyroll never sees one. Each match comes with its exact replacement step, and <code>keyroll rotate &lt;fp&gt; --ci owner/name</code> adds them to the plan.</p>
+    <div class="term"><button class="copy" data-copy="c-ci" type="button">copy</button><span id="c-ci">$ keyroll ci --all</span>
+<span style="color:#8d958f">keyroll ci  7 of 11 secret names in 2 repos look like AI provider keys · names only
+
+  octo-demo/agent-bot
+      repository     ANTHROPIC_API_KEY        Anthropic API key · updated 2026-10-03
+                     → gh secret set ANTHROPIC_API_KEY --repo octo-demo/agent-bot</span></div>
+  </section>
+
   <section class="card" id="never">
-    <div class="strip"><span class="no">05</span><h2>Never</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <div class="strip"><span class="no">06</span><h2>Never</h2><span class="jk"><i></i><i></i><i></i></span></div>
     <h3>What it will not do.</h3>
     <ul class="never">
       <li><span>Print a key, put one in JSON, or hand one to an agent over MCP.</span></li>
       <li><span>Read a value from your Keychain, Credential Manager or Secret Service. It asks whether an entry with a known name exists, and that is all (<code>--no-credstore</code> skips even that).</span></li>
       <li><span>Send anything during <code>keyroll</code> (map). <code>check</code> contacts only each key’s own issuer.</span></li>
       <li><span>Edit a database, a keychain, or a file it cannot write back atomically.</span></li>
+      <li><span>Set or read a CI secret. <code>keyroll ci</code> lists names through read-only <code>gh</code> calls and prints the <code>gh secret set</code> line for you to run.</span></li>
       <li><span>Store keys. It is not a secret manager; it helps you get to one.</span></li>
       <li><span>Read agent chat transcripts. Keys pasted into chats are <a href="https://github.com/Blackman99/spillscan">spillscan</a>’s job.</span></li>
     </ul>
   </section>
 
   <section class="card" id="agents">
-    <div class="strip"><span class="no">06</span><h2>For agents · MCP</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <div class="strip"><span class="no">07</span><h2>For agents · MCP</h2><span class="jk"><i></i><i></i><i></i></span></div>
     <h3>Let your agent ask “where is this key?”, read-only.</h3>
     <p><code>keyroll mcp</code> is a stdio MCP server with two read-only tools: <code>key_map</code> (keys, fingerprints, copy counts) and <code>key_copies</code> (every file holding one key, plus credential-store entries by name). Neither returns key material, and there is no tool that writes; rotating stays a human step.</p>
     <div class="term wrapcmd"><button class="copy" data-copy="c-mcp" type="button">copy</button><span id="c-mcp">claude mcp add keyroll -- keyroll mcp</span></div>
   </section>
 
   <section class="card" id="others">
-    <div class="strip"><span class="no">07</span><h2>Neighbours</h2><span class="jk"><i></i><i></i><i></i></span></div>
+    <div class="strip"><span class="no">08</span><h2>Neighbours</h2><span class="jk"><i></i><i></i><i></i></span></div>
     <div class="boundary">
       <div><b><a href="https://github.com/trufflesecurity/trufflehog">trufflehog</a> / gitleaks</b>Find secrets in repos and history. They don’t group copies of one key across your home folder or rotate it.</div>
       <div><b><a href="https://github.com/hugomn/heldkeys">heldkeys</a></b>Lists which tools hold keys. keyroll adds the issuer check, leftovers, OpenCode v2’s database, and rotation.</div>
